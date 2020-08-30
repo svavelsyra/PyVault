@@ -1,5 +1,8 @@
 import tkinter
 
+from vault import generate_password
+from vault import VALID_PASSWORD_TYPES
+
 class Dialog(tkinter.Toplevel):
     """
     Parent Dialog frame, inherit and override
@@ -94,11 +97,27 @@ class AddPassword(Dialog):
                                      'notes')):
             setattr(self, key, tkinter.StringVar())
             e = LabelEntry(master,
+                           width=50,
                            label=key.title(),
                            textvariable=getattr(self, key))
             e.pack()
             if initial_data:
                 getattr(self, key).set(initial_data[index])
+
+        f = tkinter.Frame(master)
+        f.pack()
+        self.pw_type = tkinter.StringVar()
+        self.pw_type.set(VALID_PASSWORD_TYPES[0])
+        gen_pass = tkinter.OptionMenu(f, self.pw_type, *VALID_PASSWORD_TYPES)
+        gen_pass.configure(width=20)
+        gen_pass.pack(side='left')
+        b = tkinter.Button(
+            f,
+            text='Generate Password',
+            command=lambda:self.password.set(
+                generate_password(
+                    self.pw_type.get())))
+        b.pack(side='left')
                 
         
     def apply(self):
@@ -107,14 +126,47 @@ class AddPassword(Dialog):
                        self.username.get(),
                        self.password.get(),
                        self.notes.get())
+        
 
-class ButtonBox(tkinter.Frame):
-    def __init__(self, master, *args, **kwargs):
+class SetupSSH(Dialog):
+    def body(self, master, initial_data):
+        """Body of set key dialog."""
+        for index, key in enumerate(('host',
+                                     'port',
+                                     'username',
+                                     'file_location',
+                                     'password')):
+            setattr(self, key, tkinter.StringVar())
+            e = LabelEntry(master,
+                           width=50,
+                           label=key.title().replace('_', ''),
+                           textvariable=getattr(self, key))
+            e.pack()
+            if key == 'password':
+                e.set_config(show='*')
+            if initial_data:
+                try:
+                    getattr(self, key).set(initial_data[index])
+                except IndexError:
+                    pass
+        
+    def apply(self):
+        """Set result upon OK button press."""
+        self.result = [self.host.get(),
+                       self.port.get(),
+                       self.username.get(),
+                       self.file_location.get(),
+                       self.password.get()]
+        
+
+class Box(tkinter.Frame):
+    def __init__(self, master, widget_type, *args, **kwargs):
         self.master = master
         side = kwargs.pop('side', 'bottom')
         super().__init__(master)
-        self.button = tkinter.Button(self, *args, **kwargs)
-        self.button.pack(side=side)
+        self.widget = getattr(tkinter, widget_type)(self, *args, **kwargs)
+        self.widget.pack(side=side)
+
 
 class LabelEntry(tkinter.Frame):
     def __init__(self, master, *args, **kwargs):
@@ -129,3 +181,6 @@ class LabelEntry(tkinter.Frame):
     @property
     def label(self, value):
         self._label.set(value)
+
+    def set_config(self, **kwargs):
+        self._entry.configure(**kwargs)

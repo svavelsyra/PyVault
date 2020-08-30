@@ -10,6 +10,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+VALID_PASSWORD_TYPES = ('alpha', 'alphanum', 'alphanumspecial', 'mobilealpha', 'mobilealphanum', 'mobilealphanumspecial')
+
 
 class Vault():
     def __init__(self, password, data_file=None):
@@ -28,6 +30,7 @@ class Vault():
             data = Fernet(self.key).decrypt(self.data['vault'])
         except InvalidToken:
             self.data['vault'] = []
+            print('InvalidToken')
             return
         self.data['vault'] = pickle.loads(data)
 
@@ -75,9 +78,9 @@ def generate_password(password_type='alpha', n=10):
         if password_type.startswith('mobile'):
             password[0] = password[0].upper()
         if 'mobilealphanum' in password_type :
-            password[-2] = random.choise(string.digits)
+            password[-2] = random.choice(string.digits)
         if password_type == 'mobilealphanumspecial':
-            password[-1] = random.choise('!"#¤%&/()=?')
+            password[-1] = random.choice('!"#¤%&/()=?')
             
         for test in alphabets[password_type][1:]:
             if not [c for c in password if getattr(c, test)()]:

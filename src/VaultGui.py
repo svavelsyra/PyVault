@@ -1,3 +1,4 @@
+import paramiko
 import pickle
 import platform
 import os
@@ -6,14 +7,16 @@ import tkinter.messagebox
 import tkinter.filedialog
 import tkinter.ttk
 
+import ssh
 from vault import Vault
 import widgets
 
 class GUI():
     def __init__(self, master):
         self.master = master
-        #self.master.protocol("WM_DELETE_WINDOW", self.onclose)
+        self.master.protocol("WM_DELETE_WINDOW", self.onclose)
         self.vault = None
+        self.ssh_config = ['', '', '', '', '']
         
         top = tkinter.Frame(master)
         top.pack(side='top', fill=tkinter.X)
@@ -25,36 +28,60 @@ class GUI():
         self.password = tkinter.StringVar()
         password = widgets.LabelEntry(
             top, label='Password', show='*', textvariable=self.password)
-        
-        self.ssh_password = tkinter.StringVar()
-        ssh_password = widgets.LabelEntry(
-            top, label='SSH Password', show='*', textvariable=self.ssh_password)
-        
-        self.url = tkinter.StringVar()
-        url = widgets.LabelEntry(top, label='URL', textvariable=self.url)
-
 
         self.local_file = tkinter.StringVar()
         local_file = widgets.LabelEntry(
             top, label='Local File', textvariable=self.local_file)
 
-        save_pass = widgets.ButtonBox(
-            top, text='Save passwords', command=self.set_passwords)
-        get_pass = widgets.ButtonBox(
-            top, text='Get passwords', command=self.get_passwords)
-        get_file = widgets.ButtonBox(
-            top, text='Get file', command=self.get_file)
+        save_pass = widgets.Box(
+            top, 'Button', text='Save passwords', command=self.set_passwords)
+        get_pass = widgets.Box(
+            top, 'Button', text='Get passwords', command=self.get_passwords)
+        get_file = widgets.Box(
+            top, 'Button', text='Get file', command=self.get_file)
+        ssh = widgets.Box(
+            top, 'Button', text='Setup SSH', command=self.setup_ssh)
         add_pass = tkinter.Button(
             bottom, command=self.add_password, text='Add Password')
-        add_pass.pack()
 
+        self.file_location = tkinter.StringVar()
+        self.file_location.set('Local')
+        file_location = tkinter.OptionMenu(
+            top, self.file_location, 'Local', 'Remote')
+        file_location.configure(width=15)
+        
         password.pack(side='left')
-        ssh_password.pack(side='left')
-        url.pack(side='left')
         local_file.pack(side='left')
         get_file.pack(side='left', fill=tkinter.Y)
         get_pass.pack(side='left', fill=tkinter.Y)
         save_pass.pack(side='left', fill=tkinter.Y)
+        ssh.pack(side='left', fill=tkinter.Y)
+        file_location.pack(side='left', fill=tkinter.Y)
+        add_pass.pack()
+        self.onstart()
+
+    def onclose(self):
+        try:
+            obj = {'values' : {key: getattr(self, key).get() for key in ('local_file', 'file_location')}}
+            ssh_config = self.ssh_config or ['', '', '', '', '']
+            ssh_config[-1] = ''
+            obj['ssh'] = ssh_config
+            with open(os.path.join(self.data_dir, '.vault'), 'wb') as fh:
+                pickle.dump(obj, fh)
+        except Exception as err:
+            print(err)
+        finally:
+            self.master.destroy()
+
+    def onstart(self):
+        try:
+            with open(os.path.join(self.data_dir, '.vault'), 'rb') as fh:
+                obj = pickle.load(fh)
+            for key, value in obj['values'].items():
+                getattr(self, key).set(value)
+            self.ssh_config = obj['ssh']
+        except Exception as err:
+            print(err)
 
     @property
     def data_dir(self):
@@ -68,18 +95,22 @@ class GUI():
         path = os.path.expanduser(os.path.join('~', path))
         os.makedirs(path, exist_ok=True)
         return path
-        
+
     def get_passwords(self):
         if not self.verify():
             return
-
-        if self.local_file.get():
+        if self.file_location.get() == 'Local':
             with open(self.local_file.get(), 'rb') as fh:
                 self.vault = Vault(self.password.get(), fh)
-        elif self.url.get():
-            pass
+        elif self.file_location.get() == 'Remote':
+            with ssh.RemoteFile(*self.ssh_config, self.data_dir) as remote:
+                fh = remote.open('rb')
+                if not fh:
+                    return
+                self.vault = Vault(self.password.get(), fh)
         else:
-            tkinter.messagebox.showerror('Set url/local file', 'URL or Local File has to be set')
+            tkinter.messagebox.showerror('Set url/local file',
+                                         'URL or Local File has to be set')
 
         self.passbox.clear()
         for password in self.vault.get_objects():
@@ -91,25 +122,33 @@ class GUI():
         if not self.vault:
             self.vault = Vault(self.password.get())
             self.vault.create_key()
-        objects = [self.passbox.item(x, 'values') for x in self.passbox.get_children()]
+        objects = [self.passbox.item(x, 'values') for x in
+                   self.passbox.get_children()]
         self.vault.set_objects(objects)
-        local_file = self.local_file.get()
-        if local_file:
-            with open(local_file, 'wb') as fh:
+        if self.file_location.get() == 'Local':
+            with open(self.local_file.get(), 'wb') as fh:
                 self.vault.write(fh)
-        elif url:
-            pass
+        elif self.file_location.get() == 'Remote':
+            with ssh.RemoteFile(*self.ssh_config, self.data_dir) as remote:
+                self.vault.write(remote.open('wb'))
+        else:
+            tkinter.messagebox.showerror(
+                'Faulty file location',
+                f'File location is unknow {self.file_location.get()}')
 
     def verify(self):
         if not self.password.get():
             tkinter.messagebox.showerror('Set Password',
                                          'Password has to be set')
             return
-        
-        if self.url.get() and self.local_file.get():
-            tkinter.messagebox.showerror(
-                'Only one can be set',
-                'URL and Local File cannot be set at the same time')
+        if self.file_location.get() == 'Local' and not self.local_file.get():
+            tkinter.messagebox.showerror('Set Local filepath',
+                                         'Local filepath has to be set')
+            return
+        elif self.file_location.get() == 'Remote':
+            # Add validation here
+            return True
+        else:
             return
         return True
 
@@ -120,6 +159,13 @@ class GUI():
 
     def add_password(self):
         self.passbox.add()
+
+    def setup_ssh(self):
+        result = widgets.SetupSSH(self.master,
+                                  'SSH Config',
+                                  self.ssh_config).result
+        if result:
+            self.ssh_config = result
 
 class PasswordBox(tkinter.ttk.Treeview):
     def __init__(self, master):
