@@ -134,12 +134,11 @@ class SetupSSH(Dialog):
         for index, key in enumerate(('host',
                                      'port',
                                      'username',
-                                     'file_location',
                                      'password')):
             setattr(self, key, tkinter.StringVar())
             e = LabelEntry(master,
                            width=50,
-                           label=key.title().replace('_', ''),
+                           label=key.title().replace('_', ' '),
                            textvariable=getattr(self, key))
             e.pack()
             if key == 'password':
@@ -152,12 +151,24 @@ class SetupSSH(Dialog):
         
     def apply(self):
         """Set result upon OK button press."""
-        self.result = [self.host.get(),
-                       self.port.get(),
-                       self.username.get(),
-                       self.file_location.get(),
-                       self.password.get()]
-        
+        self.result = [getattr(self, key).get() for
+                       key in ('host', 'port', 'username', 'password')]
+
+class SetupFiles(Dialog):
+    def body(self, master, initial_data):
+        for key in ('file_location', 'original_file'):
+            setattr(self, key, tkinter.StringVar())
+            e = LabelEntry(master,
+                           width=50,
+                           label=key.title().replace('_', ' '),
+                           textvariable=getattr(self, key))
+            e.pack()
+            if initial_data:
+                getattr(self, key).set(initial_data.get(key, ''))
+
+    def apply(self):
+        self.result = {key: getattr(self, key).get() for
+                       key in ('file_location', 'original_file')}
 
 class Box(tkinter.Frame):
     def __init__(self, master, widget_type, *args, **kwargs):

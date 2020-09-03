@@ -3,7 +3,7 @@ import paramiko
 import tkinter.messagebox
 
 class RemoteFile():
-    def __init__(self, host, port, username, filepath, password, data_dir):
+    def __init__(self, host, port, username, password, filepath, data_dir):
         self.ssh = paramiko.SSHClient()
         try:
             self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
