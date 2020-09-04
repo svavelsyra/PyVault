@@ -106,17 +106,23 @@ class AddPassword(Dialog):
 
         f = tkinter.Frame(master)
         f.pack()
-        self.pw_type = tkinter.StringVar()
-        self.pw_type.set(VALID_PASSWORD_TYPES[0])
-        gen_pass = tkinter.OptionMenu(f, self.pw_type, *VALID_PASSWORD_TYPES)
+        pw_type = tkinter.StringVar()
+        pw_type.set(VALID_PASSWORD_TYPES[0])
+        pw_len = tkinter.IntVar()
+        pw_len.set(10)
+        gen_pass = tkinter.OptionMenu(f, pw_type, *VALID_PASSWORD_TYPES)
         gen_pass.configure(width=20)
+        length = tkinter.OptionMenu(f, pw_len, *range(4,16))
+        length.configure(width=2)
+        
         gen_pass.pack(side='left')
+        length.pack(side='left')
         b = tkinter.Button(
             f,
             text='Generate Password',
             command=lambda:self.password.set(
                 generate_password(
-                    self.pw_type.get())))
+                    pw_type.get(), pw_len.get())))
         b.pack(side='left')
                 
         
