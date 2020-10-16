@@ -201,3 +201,9 @@ class LabelEntry(tkinter.Frame):
 
     def set_config(self, **kwargs):
         self._entry.configure(**kwargs)
+
+    def focus_set(self, *args, **kwargs):
+        self._entry.focus_set(*args, **kwargs)
+
+    def bind(self, *args, **kwargs):
+        self._entry.bind(*args, **kwargs)

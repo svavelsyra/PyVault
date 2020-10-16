@@ -28,8 +28,12 @@ class GUI():
         bottom.pack(side='top', fill=tkinter.X)
 
         self.password = tkinter.StringVar()
-        password = widgets.LabelEntry(
-            top, label='Password', show='*', textvariable=self.password)
+        password = widgets.LabelEntry(top,
+                                      label='Password',
+                                      show='*',
+                                      textvariable=self.password)
+
+        password.bind('<Return>', self.get_passwords)
 
         # Buttons
         save_pass = widgets.Box(
@@ -65,7 +69,8 @@ class GUI():
         file_location.pack(side='left', fill=tkinter.Y)
         add_pass.pack()
         self.onstart()
-
+        password.focus_set()
+        
     def onclose(self):
         try:
             ssh_config = self.ssh_config
@@ -105,7 +110,7 @@ class GUI():
         data = self.vault.save_data()
         steganography.write(fh, self.file_config['original_file'], data)
 
-    def get_passwords(self):
+    def get_passwords(self, *args):
         if not self.verify():
             return
         if self.file_location.get() == 'Local':
