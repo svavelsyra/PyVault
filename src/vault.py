@@ -15,7 +15,8 @@ VALID_PASSWORD_TYPES = ('alpha',
                         'alphanumspecial',
                         'mobilealpha',
                         'mobilealphanum',
-                        'mobilealphanumspecial')
+                        'mobilealphanumspecial',
+                        'numerical')
 
 class Vault():
     def __init__(self, password=None, data_file=None):
@@ -89,7 +90,8 @@ def generate_password(password_type='alpha', n=10):
                  'alphanumspecial': (string.ascii_letters + string.digits + '!"#¤%&/()=?', 'isupper', 'islower','isdigit'),
                  'mobilealpha': (string.ascii_lowercase, 'islower'),
                  'mobilealphanum': (string.ascii_lowercase, 'islower'),
-                 'mobilealphanumspecial': (string.ascii_lowercase, 'islower'),}
+                 'mobilealphanumspecial': (string.ascii_lowercase, 'islower'),
+                 'numerical': (string.digits, 'isdigit')}
     if not password_type in alphabets:
         raise KeyError(f'Password type has to be one of the following: {", ".join(alphabets.keys())} it is "{password_type}".')
     while True:
