@@ -177,12 +177,16 @@ class SetupFiles(Dialog):
                        key in ('file_location', 'original_file')}
 
 class Box(tkinter.Frame):
+    """Frame box to make widgets align."""
     def __init__(self, master, widget_type, *args, **kwargs):
         self.master = master
         side = kwargs.pop('side', 'bottom')
         super().__init__(master)
         self.widget = getattr(tkinter, widget_type)(self, *args, **kwargs)
         self.widget.pack(side=side)
+
+    def config(self, *args, **kwargs):
+        self.widget.config(*args, **kwargs)
 
 
 class LabelEntry(tkinter.Frame):

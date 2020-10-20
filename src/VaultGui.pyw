@@ -13,9 +13,11 @@ from vault import Vault
 import widgets
 
 class GUI():
+    """GUI to handle a password vault."""
     def __init__(self, master):
         self.master = master
         self.master.protocol("WM_DELETE_WINDOW", self.onclose)
+        self.master.title('PyVault')
         self.vault = None
         self.ssh_config = []
         self.file_config = {}
@@ -28,18 +30,24 @@ class GUI():
         bottom.pack(side='top', fill=tkinter.X)
 
         self.password = tkinter.StringVar()
+        self._password = None
         password = widgets.LabelEntry(top,
                                       label='Password',
                                       show='*',
                                       textvariable=self.password)
 
         password.bind('<Return>', self.get_passwords)
+        timer = Timer(self.master, self.lock, 5000*60)
+        master.bind_all('<Any-KeyPress>', timer.reset)
+        master.bind_all('<Any-ButtonPress>', timer.reset)
 
         # Buttons
         save_pass = widgets.Box(
             top, 'Button', text='Save passwords', command=self.set_passwords)
         get_pass = widgets.Box(
             top, 'Button', text='Get passwords', command=self.get_passwords)
+        self.lock_btn = widgets.Box(
+            top, 'Button', text='Unlock', command=self.toggle_lock, state=tkinter.DISABLED)
         setup_files = widgets.Box(
             top, 'Button', text='Setup Files', command=self.setup_files)
         ssh = widgets.Box(
@@ -62,6 +70,7 @@ class GUI():
         # Pack it all up
         password.pack(side='left')
         get_pass.pack(side='left', fill=tkinter.Y)
+        self.lock_btn.pack(side='left', fill=tkinter.Y)
         save_pass.pack(side='left', fill=tkinter.Y)
         setup_files.pack(side='left', fill=tkinter.Y)
         ssh.pack(side='left', fill=tkinter.Y)
@@ -72,6 +81,7 @@ class GUI():
         password.focus_set()
         
     def onclose(self):
+        """Runs on GUI close to save settings."""
         try:
             ssh_config = self.ssh_config
             if ssh_config:
@@ -88,6 +98,7 @@ class GUI():
             self.master.destroy()
 
     def onstart(self):
+        """Runs on GUI start to load saved settings."""
         try:
             with open(os.path.join(constants.data_dir(), '.vault'), 'rb') as fh:
                 obj = pickle.load(fh)
@@ -102,24 +113,28 @@ class GUI():
             print(err)
 
     def steganography_load(self, fh):
+        """Load hidden data from a file."""
         data = steganography.read(fh, self.file_config['original_file'])
-        self.vault = Vault(self.password.get())
+        self.vault = Vault()
         self.vault.load_data(data)
 
     def steganography_save(self, fh):
+        """Save data hidden in a file."""
         data = self.vault.save_data()
         steganography.write(fh, self.file_config['original_file'], data)
 
     def get_passwords(self, *args):
+        """Get and unlock passwords from vault."""
         if not self.verify():
             return
+        self._password = self.password.get()
         if self.file_location.get() == 'Local':
             self.make_dirs()
             with open(self.file_config['file_location'], 'rb') as fh:
                 if self.do_steganography.get():
                     self.steganography_load(fh)
                 else:
-                    self.vault = Vault(self.password.get(), fh)
+                    self.vault = Vault(fh)
         elif self.file_location.get() == 'Remote':
             with ssh.RemoteFile(*self.ssh_config,
                                 self.file_config['file_location'],
@@ -130,18 +145,24 @@ class GUI():
                 if self.do_steganography.get():
                     self.steganography_load(fh)
                 else:
-                    self.vault = Vault(self.password.get(), fh)
+                    self.vault = Vault(fh)
         else:
             tkinter.messagebox.showerror('Set url/local file',
                                          'URL or Local File has to be set')
             return
+        self.update_password_box()
 
+    def update_password_box(self):
+        """Load passwords in to GUI."""
         self.passbox.clear()
-        self.vault.unlock()
-        for password in self.vault.get_objects():
+        self.vault.unlock(self.password.get())
+        self.lock_btn.config(text='Lock')
+        self.lock_btn.config(state=tkinter.NORMAL)
+        for password in sorted(self.vault.get_objects()):
             self.passbox.add(password)
 
     def set_passwords(self):
+        """Save password in to file."""
         if not self.verify():
             return
         if not self.vault:
@@ -173,6 +194,7 @@ class GUI():
         self.vault.unlock()
 
     def verify(self):
+        """Verify mandatory information."""
         if not self.password.get():
             tkinter.messagebox.showerror('Set Password',
                                          'Password has to be set')
@@ -191,6 +213,7 @@ class GUI():
         return True
 
     def setup_files(self):
+        """Setup files throught dialog."""
         result = widgets.SetupFiles(self.master,
                                   'File Config',
                                   self.file_config).result
@@ -198,9 +221,11 @@ class GUI():
             self.file_config = result
 
     def add_password(self):
+        """Add a new password to password list."""
         self.passbox.add()
 
     def setup_ssh(self):
+        """Setup ssh settings throught a dialog."""
         result = widgets.SetupSSH(self.master,
                                   'SSH Config',
                                   self.ssh_config).result
@@ -208,11 +233,31 @@ class GUI():
             self.ssh_config = result
 
     def make_dirs(self):
+        """Create directory to contain files if it does not exist."""
         dirname = os.path.dirname(self.file_config['file_location'])
         if dirname:
             os.makedirs(dirname, exsist_ok=True)
 
+    def lock(self):
+        """Lock vault, and clear local password list."""
+        if self.vault and not self.vault.locked:
+            self.vault.lock(self._password)
+        self._password = None
+        self.password.set('')
+        self.passbox.clear()
+        
+    def toggle_lock(self):
+        """Toggle lock and unlock of vault."""
+        if self.password.get() and self.vault and self.vault.locked:
+            self.lock_btn.config(text='Lock')
+            self.update_password_box()
+            
+        elif self.vault and self._password:
+            self.lock_btn.config(text='Unlock')
+            self.lock()
+
 class PasswordBox(tkinter.ttk.Treeview):
+    """Class to display password list."""
     def __init__(self, master):
         columns = ('System', 'User Name', 'Password', 'Notes')
         super().__init__(master,
@@ -224,11 +269,13 @@ class PasswordBox(tkinter.ttk.Treeview):
         self.bind('<ButtonPress-1>', self.on_click)
 
     def clear(self):
+        """Remove all unlocked passwords from the list."""
         children = self.get_children()
         if children:
-            self.delete(children)
+            self.delete(*children)
 
     def add(self, password=None):
+        """Add new password to password list."""
         password = password or widgets.AddPassword(self.master).result
         if not password:
             return
@@ -240,6 +287,7 @@ class PasswordBox(tkinter.ttk.Treeview):
             self.insert('', 'end', values=password)
 
     def edit(self, iid):
+        """Edit password."""
         values = self.item(iid, 'values')
         result = widgets.AddPassword(self.master, 'Password', values).result
         if result and [x for x in zip(values, result) if x[0] != x[1]]:
@@ -247,11 +295,25 @@ class PasswordBox(tkinter.ttk.Treeview):
             self.add(result)
         
     def on_click(self, event):
+        """Open Edit dialog on click."""
         region = self.identify("region", event.x, event.y)
         if region == 'heading':
             return
         self.edit(self.identify_row(event.y))
-        
+
+class Timer():
+    """Timer class to triger call back after given time."""
+    def __init__(self, master, callback, after):
+        self.master = master
+        self.callback = callback
+        self.after = after
+        self.timer = master.after(after, callback)
+
+    def reset(self, *args, **kwargs):
+        """Reset timer"""
+        self.timer and self.master.after_cancel(self.timer)
+        self.master.after(self.after, self.callback)
+ 
 tk = tkinter.Tk()
 GUI(tk)
 tk.mainloop()

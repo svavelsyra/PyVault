@@ -3,6 +3,9 @@ import paramiko
 import tkinter.messagebox
 
 class RemoteFile():
+    """
+    Class to handle remote files through ssh.
+    """
     def __init__(self, host, port, username, password, filepath, data_dir):
         self.ssh = paramiko.SSHClient()
         try:
@@ -11,7 +14,7 @@ class RemoteFile():
             os.makedirs(data_dir, exist_ok=True)
             with open(os.path.join(data_dir, '.know_hosts'), 'w'):
                 pass
-        self.connect(host, port, username, password)
+        self._connect(host, port, username, password)
         self.filepath = filepath
         self.sftp = None
              
@@ -24,7 +27,7 @@ class RemoteFile():
                 getattr(self, con).close()
             except:
                 pass
-    def connect(self, host, port, username, password, unknown_host=False):
+    def _connect(self, host, port, username, password, unknown_host=False):
         try:
             if unknown_host:
                 self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy)
@@ -41,7 +44,7 @@ class RemoteFile():
             else:
                 self.ssh.close()
 
-    def makedirs(self, path):
+    def _makedirs(self, path):
         current_path = ''
         for p in path.split('/'):
             current_path = (current_path and f'{current_path}/{p}') or p
@@ -51,6 +54,7 @@ class RemoteFile():
                 self.sftp.mkdir(current_path)
                 
     def open(self, *args, **kwargs):
+        """Open remote path."""
         path = kwargs.pop('path', self.filepath)
         transport = self.ssh.get_transport()
         try:
@@ -58,7 +62,7 @@ class RemoteFile():
         except:
             return            
         self.sftp = self.ssh.open_sftp()
-        self.makedirs(os.path.dirname(path))
+        self._makedirs(os.path.dirname(path))
         try:
             return self.sftp.open(path, *args, **kwargs)
         except FileNotFoundError:

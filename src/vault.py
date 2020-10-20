@@ -19,9 +19,8 @@ VALID_PASSWORD_TYPES = ('alpha',
                         'numerical')
 
 class Vault():
-    def __init__(self, password=None, data_file=None):
-        self.password = password
-        self.key = None
+    def __init__(self, data_file=None):
+        self.locked = True
         if data_file:
             self.load_file(data_file)
         else:
@@ -41,27 +40,25 @@ class Vault():
     def save_file(self, fh):
         pickle.dump(self.data, fh)
         
-    def lock(self, password=None):
-        if password:
-            self.password = password
-            self.key = None
+    def lock(self, password):
         data = pickle.dumps(self.data['vault'])
-        key = self.key or self.create_key(self.data['salt'],
-                                          self.data.get('iterations', 1000000))
+        key = self.create_key(password,
+                              self.data['salt'],
+                              self.data.get('iterations', 1000000))
         self.data['vault'] = Fernet(key).encrypt(data)
+        self.locked = True
 
-    def unlock(self, password=None):
-        if password:
-            self.password = password
-            self.key = None
-        key = self.key or self.create_key(self.data['salt'],
-                                          self.data.get('iterations', 1000000))
+    def unlock(self, password):
+        key = self.create_key(password,
+                              self.data['salt'],
+                              self.data.get('iterations', 1000000))
         try:
             self.data['vault'] = pickle.loads(Fernet(key).decrypt(self.data['vault']))
+            self.locked = False
         except InvalidToken:
-            self.data['vault'] = []
+            pass
         
-    def create_key(self, salt, iterations=1000000):
+    def create_key(self, password, salt, iterations=1000000):
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -70,7 +67,7 @@ class Vault():
             backend=default_backend()
             )
         return base64.urlsafe_b64encode(
-            kdf.derive(bytearray(self.password, 'utf-8')))
+            kdf.derive(bytearray(password, 'utf-8')))
 
     def get_objects(self):
         return self.data['vault']
