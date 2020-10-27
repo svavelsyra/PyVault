@@ -248,6 +248,7 @@ class GUI():
         """Lock vault, and clear local password list."""
         if self.vault and not self.vault.locked:
             self.vault.lock(self._password)
+            self.lock_btn.config(text='Unlock')
         self._password = None
         self.password.set('')
         self.passbox.clear()
@@ -255,11 +256,9 @@ class GUI():
     def toggle_lock(self):
         """Toggle lock and unlock of vault."""
         if self.password.get() and self.vault and self.vault.locked:
-            self.lock_btn.config(text='Lock')
             self.update_password_box()
             
         elif self.vault and self._password:
-            self.lock_btn.config(text='Unlock')
             self.lock()
 
     def dirty(self, *args, **kwargs):
