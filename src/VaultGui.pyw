@@ -17,7 +17,8 @@ class GUI():
     def __init__(self, master):
         self.master = master
         self.master.protocol("WM_DELETE_WINDOW", self.onclose)
-        self.master.title('PyVault')
+        self.title = 'PyVault'
+        self.master.title(self.title)
         self.vault = None
         self.ssh_config = []
         self.file_config = {}
@@ -25,6 +26,7 @@ class GUI():
         top = tkinter.Frame(master)
         top.pack(side='top', fill=tkinter.X)
         self.passbox = PasswordBox(master)
+        self.passbox.dirty.trace('w', self.dirty)
         self.passbox.pack(side='top', fill=tkinter.BOTH, expand=1)
         bottom = tkinter.Frame(master)
         bottom.pack(side='top', fill=tkinter.X)
@@ -82,6 +84,9 @@ class GUI():
         
     def onclose(self):
         """Runs on GUI close to save settings."""
+        if self.dirty() and not tkinter.messagebox.askokcancel(
+            'Quit without save?', 'Unsaved passwords exists, quit anyway?'):
+            return
         try:
             ssh_config = self.ssh_config
             if ssh_config:
@@ -170,7 +175,7 @@ class GUI():
         objects = [self.passbox.item(x, 'values') for x in
                    self.passbox.get_children()]
         self.vault.set_objects(objects)
-        self.vault.lock()
+        self.vault.lock(self._password)
         if self.file_location.get() == 'Local':
             self.make_dirs()
             with open(self.file_config['file_location'], 'wb') as fh:
@@ -191,7 +196,8 @@ class GUI():
             tkinter.messagebox.showerror(
                 'Faulty file location',
                 f'File location is unknow {self.file_location.get()}')
-        self.vault.unlock()
+        self.vault.unlock(self._password)
+        self.passbox.dirty.set(False)
 
     def verify(self):
         """Verify mandatory information."""
@@ -256,6 +262,11 @@ class GUI():
             self.lock_btn.config(text='Unlock')
             self.lock()
 
+    def dirty(self, *args, **kwargs):
+        dirty = ' *' if self.passbox.dirty.get() else ''
+        self.master.title(self.title + dirty)
+        return bool(dirty)
+
 class PasswordBox(tkinter.ttk.Treeview):
     """Class to display password list."""
     def __init__(self, master):
@@ -267,10 +278,13 @@ class PasswordBox(tkinter.ttk.Treeview):
         for name in columns:
             self.heading(name, text=name)
         self.bind('<ButtonPress-1>', self.on_click)
+        self.dirty = tkinter.BooleanVar()
+        self.dirty.set(False)
 
     def clear(self):
         """Remove all unlocked passwords from the list."""
         children = self.get_children()
+        self.dirty.set(False)
         if children:
             self.delete(*children)
 
@@ -280,16 +294,18 @@ class PasswordBox(tkinter.ttk.Treeview):
         if not password:
             return
         for index, iid in enumerate(self.get_children()):
-            if self.set(iid, 'System') > password[0]:
+            if self.set(iid, 'System').lower() > password[0].lower():
                 self.insert('', index, values=password)
                 break
         else:
             self.insert('', 'end', values=password)
+        self.dirty.set(True)
 
     def edit(self, iid):
         """Edit password."""
         values = self.item(iid, 'values')
         result = widgets.AddPassword(self.master, 'Password', values).result
+        # We got a result and atleast one field has changed
         if result and [x for x in zip(values, result) if x[0] != x[1]]:
             self.delete(iid)
             self.add(result)
@@ -312,7 +328,7 @@ class Timer():
     def reset(self, *args, **kwargs):
         """Reset timer"""
         self.timer and self.master.after_cancel(self.timer)
-        self.master.after(self.after, self.callback)
+        self.timer = self.master.after(self.after, self.callback)
  
 tk = tkinter.Tk()
 GUI(tk)
