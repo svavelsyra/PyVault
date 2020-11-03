@@ -20,7 +20,7 @@ VALID_PASSWORD_TYPES = ('alpha',
 
 class Vault():
     def __init__(self, data_file=None):
-        self.locked = True
+        self._locked = True
         if data_file:
             self.load_file(data_file)
         else:
@@ -28,6 +28,9 @@ class Vault():
                          'iterations': 1000000,
                          'vault': []}
 
+    @property
+    def locked(self):
+        return self._locked
     def load_data(self, data):
         self.data = pickle.loads(data)
 
@@ -46,7 +49,7 @@ class Vault():
                               self.data['salt'],
                               self.data.get('iterations', 1000000))
         self.data['vault'] = Fernet(key).encrypt(data)
-        self.locked = True
+        self._locked = True
 
     def unlock(self, password):
         key = self.create_key(password,
@@ -54,7 +57,7 @@ class Vault():
                               self.data.get('iterations', 1000000))
         try:
             self.data['vault'] = pickle.loads(Fernet(key).decrypt(self.data['vault']))
-            self.locked = False
+            self._locked = False
         except InvalidToken:
             pass
         

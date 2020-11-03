@@ -138,7 +138,6 @@ class GUI():
         """Get and unlock passwords from vault."""
         if not self.verify():
             return
-        self._password = self.password.get()
         if self.file_location.get() == 'Local':
             self.make_dirs()
             with open(self.file_config['file_location'], 'rb') as fh:
@@ -166,7 +165,8 @@ class GUI():
     def update_password_box(self):
         """Load passwords in to GUI."""
         self.passbox.clear()
-        self.vault.unlock(self.password.get())
+        self._password = self.password.get()
+        self.vault.unlock(self._password)
         self.lock_btn.config(text='Lock')
         self.lock_btn.config(state=tkinter.NORMAL)
         for password in sorted(self.vault.get_objects()):
@@ -263,8 +263,7 @@ class GUI():
     def toggle_lock(self):
         """Toggle lock and unlock of vault."""
         if self.password.get() and self.vault and self.vault.locked:
-            self.update_password_box()
-            
+            self.update_password_box()          
         elif self.vault and self._password:
             self.lock()
 
