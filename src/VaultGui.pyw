@@ -38,7 +38,7 @@ class GUI():
                                       show='*',
                                       textvariable=self.password)
 
-        password.bind('<Return>', self.get_passwords)
+        password.bind('<Return>', self.on_return_key)
         timer = Timer(self.master, self.lock, 5000*60)
         master.bind_all('<Any-KeyPress>', timer.reset)
         master.bind_all('<Any-ButtonPress>', timer.reset)
@@ -72,8 +72,8 @@ class GUI():
         # Pack it all up
         password.pack(side='left')
         get_pass.pack(side='left', fill=tkinter.Y)
-        self.lock_btn.pack(side='left', fill=tkinter.Y)
         save_pass.pack(side='left', fill=tkinter.Y)
+        self.lock_btn.pack(side='left', fill=tkinter.Y)
         setup_files.pack(side='left', fill=tkinter.Y)
         ssh.pack(side='left', fill=tkinter.Y)
         stego.pack(side='left', fill=tkinter.Y)
@@ -116,6 +116,12 @@ class GUI():
                 setattr(self, key, value)
         except Exception as err:
             print(err)
+
+    def on_return_key(self, *event):
+        if self.vault and self.vault.locked:
+            self.update_password_box()
+        else:
+            self.get_passwords()
 
     def steganography_load(self, fh):
         """Load hidden data from a file."""
