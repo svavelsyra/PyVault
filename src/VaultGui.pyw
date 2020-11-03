@@ -165,6 +165,7 @@ class GUI():
         self.lock_btn.config(state=tkinter.NORMAL)
         for password in sorted(self.vault.get_objects()):
             self.passbox.add(password)
+        self.passbox.dirty.set(False)
 
     def set_passwords(self):
         """Save password in to file."""
