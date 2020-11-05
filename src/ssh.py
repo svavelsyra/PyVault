@@ -17,11 +17,17 @@ class RemoteFile():
         self._connect(host, port, username, password)
         self.filepath = filepath
         self.sftp = None
+        self.stat = None
              
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
+        stat = self.sftp.stat(self.filepath)
+        if self.stat and self.stat != stat:
+            print(self.stat)
+            print(stat)
+            #self.sftp.set_file_attr(self.filepath, self.stat)
         for con in ('sftp', 'ssh'):
             try:
                 getattr(self, con).close()
@@ -64,7 +70,7 @@ class RemoteFile():
         self.sftp = self.ssh.open_sftp()
         self._makedirs(os.path.dirname(path))
         try:
+            self.stat = self.sftp.stat(path)
             return self.sftp.open(path, *args, **kwargs)
         except FileNotFoundError:
             tkinter.messagebox.showerror('File not found!', f'Unable to find the file {self.filepath}')
-        
