@@ -17,11 +17,15 @@ class RemoteFile():
         self._connect(host, port, username, password)
         self.filepath = filepath
         self.sftp = None
+        self.stat = None
              
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
+        if self.stat:
+            self.sftp.utime(self.filepath, (self.stat.st_atime,
+                                            self.stat.st_mtime))
         for con in ('sftp', 'ssh'):
             try:
                 getattr(self, con).close()
@@ -34,7 +38,8 @@ class RemoteFile():
             self.ssh.connect(host, int(port), username, password)
         except paramiko.ssh_exception.SSHException as err:
             if str(err) == 'Authentication failed.':
-                tkinter.messagebox.showerror('Authentication failed.', 'Authentication failed.')
+                tkinter.messagebox.showerror('Authentication failed.',
+                                             'Authentication failed.')
                 self.ssh.close()
                 return
             if tkinter.messagebox.askokcancel(
@@ -64,7 +69,8 @@ class RemoteFile():
         self.sftp = self.ssh.open_sftp()
         self._makedirs(os.path.dirname(path))
         try:
+            self.stat = self.sftp.stat(path)
             return self.sftp.open(path, *args, **kwargs)
         except FileNotFoundError:
-            tkinter.messagebox.showerror('File not found!', f'Unable to find the file {self.filepath}')
-        
+            tkinter.messagebox.showerror('File not found!',
+                                         f'Unable to find the file {self.filepath}')
