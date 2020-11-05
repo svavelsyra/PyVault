@@ -1,4 +1,3 @@
-import paramiko
 import pickle
 import os
 import tkinter
@@ -28,6 +27,8 @@ class GUI():
         self.passbox = PasswordBox(master)
         self.passbox.dirty.trace('w', self.dirty)
         self.passbox.pack(side='top', fill=tkinter.BOTH, expand=1)
+        self.status = widgets.StatusBar(master, relief=tkinter.RAISED)
+        self.status.pack(side='top', fill=tkinter.X)
         bottom = tkinter.Frame(master)
         bottom.pack(side='top', fill=tkinter.X)
 
@@ -81,6 +82,7 @@ class GUI():
         add_pass.pack()
         self.onstart()
         password.focus_set()
+        self.status.set('Init OK')
         
     def onclose(self):
         """Runs on GUI close to save settings."""
@@ -138,6 +140,7 @@ class GUI():
         """Get and unlock passwords from vault."""
         if not self.verify():
             return
+        self.status.set('Getting passwords')
         if self.file_location.get() == 'Local':
             self.make_dirs()
             with open(self.file_config['file_location'], 'rb') as fh:
@@ -146,35 +149,43 @@ class GUI():
                 else:
                     self.vault = Vault(fh)
         elif self.file_location.get() == 'Remote':
-            with ssh.RemoteFile(*self.ssh_config,
-                                self.file_config['file_location'],
-                                constants.data_dir()) as remote:
-                fh = remote.open('rb')
-                if not fh:
-                    return
-                if self.do_steganography.get():
-                    self.steganography_load(fh)
-                else:
-                    self.vault = Vault(fh)
+            try:
+                with ssh.RemoteFile(*self.ssh_config,
+                                    self.file_config['file_location'],
+                                    constants.data_dir()) as remote:
+                    fh = remote.open('rb')
+                    if not fh:
+                        return
+                    if self.do_steganography.get():
+                        self.steganography_load(fh)
+                    else:
+                        self.vault = Vault(fh)
+            except Exception as err:
+                self.status.set(err)
         else:
             tkinter.messagebox.showerror('Set url/local file',
                                          'URL or Local File has to be set')
             return
+        self.status.set('Passwords successfully recieved')
         self.update_password_box()
 
     def update_password_box(self):
         """Load passwords in to GUI."""
+        self.status.set('Updating password box')
         self.passbox.clear()
         self._password = self.password.get()
+        self.status.set('Unlocking vault')
         self.vault.unlock(self._password)
         self.lock_btn.config(text='Lock')
         self.lock_btn.config(state=tkinter.NORMAL)
         for password in sorted(self.vault.get_objects()):
             self.passbox.add(password)
         self.passbox.dirty.set(False)
+        self.status.set('Passwords updated')
 
     def set_passwords(self):
         """Save password in to file."""
+        self.status.set('Saving passwords')
         if not self.verify():
             return
         if not self.vault:
@@ -205,6 +216,7 @@ class GUI():
                 f'File location is unknow {self.file_location.get()}')
         self.vault.unlock(self._password)
         self.passbox.dirty.set(False)
+        self.status.set('Passwords saved')
 
     def verify(self):
         """Verify mandatory information."""
@@ -253,13 +265,14 @@ class GUI():
 
     def lock(self):
         """Lock vault, and clear local password list."""
+        self.status.set('Locking vault')
         if self.vault and not self.vault.locked:
             self.vault.lock(self._password)
             self.lock_btn.config(text='Unlock')
         self._password = None
         self.password.set('')
         self.passbox.clear()
-        
+        self.status.set('Vault locked')
     def toggle_lock(self):
         """Toggle lock and unlock of vault."""
         if self.password.get() and self.vault and self.vault.locked:
@@ -271,6 +284,7 @@ class GUI():
         dirty = ' *' if self.passbox.dirty.get() else ''
         self.master.title(self.title + dirty)
         return bool(dirty)
+
 
 class PasswordBox(tkinter.ttk.Treeview):
     """Class to display password list."""

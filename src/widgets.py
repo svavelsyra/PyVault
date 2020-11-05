@@ -188,6 +188,18 @@ class Box(tkinter.Frame):
     def config(self, *args, **kwargs):
         self.widget.config(*args, **kwargs)
 
+class StatusBar(tkinter.Label):
+    def __init__(self, master, *args, **kwargs):
+        self.default_color = master.cget('bg')
+        self.master = master
+        self._data = kwargs.pop('textvariable', tkinter.StringVar())
+        super().__init__(master, *args, textvariable=self._data, **kwargs)
+
+    def set(self, data, color=None):
+        color = color or self.default_color
+        self._data.set(data)
+        self.config(bg=color)
+        self.master.update_idletasks()
 
 class LabelEntry(tkinter.Frame):
     def __init__(self, master, *args, **kwargs):
