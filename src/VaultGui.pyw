@@ -161,7 +161,8 @@ class GUI():
                     else:
                         self.vault = Vault(fh)
             except Exception as err:
-                self.status.set(err)
+                self.status.set(err, color='red')
+                return
         else:
             tkinter.messagebox.showerror('Set url/local file',
                                          'URL or Local File has to be set')
