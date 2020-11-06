@@ -40,17 +40,20 @@ class GUI():
                                       textvariable=self.password)
 
         password.bind('<Return>', self.on_return_key)
+        # Activity sensor.
         timer = Timer(self.master, self.lock, 5000*60)
-        master.bind_all('<Any-KeyPress>', timer.reset)
-        master.bind_all('<Any-ButtonPress>', timer.reset)
+        master.bind_all('<Enter>', timer.reset)
 
-        # Buttons
+        # Buttons.
         save_pass = widgets.Box(
             top, 'Button', text='Save passwords', command=self.set_passwords)
         get_pass = widgets.Box(
             top, 'Button', text='Get passwords', command=self.get_passwords)
-        self.lock_btn = widgets.Box(
-            top, 'Button', text='Unlock', command=self.toggle_lock, state=tkinter.DISABLED)
+        self.lock_btn = widgets.Box(top,
+                                    'Button',
+                                    text='Unlock',
+                                    command=self.toggle_lock,
+                                    state=tkinter.DISABLED)
         setup_files = widgets.Box(
             top, 'Button', text='Setup Files', command=self.setup_files)
         ssh = widgets.Box(
@@ -60,8 +63,10 @@ class GUI():
 
         # Checkboxes
         self.do_steganography = tkinter.IntVar()
-        stego = widgets.Box(
-            top, 'Checkbutton', text='Steganography', variable=self.do_steganography)
+        stego = widgets.Box(top,
+                            'Checkbutton',
+                            text='Steganography',
+                            variable=self.do_steganography)
         
         # Option menues
         self.file_location = tkinter.StringVar()
@@ -91,6 +96,7 @@ class GUI():
             return
         try:
             ssh_config = self.ssh_config
+            # Clearing SSH-Password if set
             if ssh_config:
                 ssh_config[-1] = ''
             obj = {'attributes': {'ssh_config': ssh_config,
@@ -127,21 +133,25 @@ class GUI():
 
     def steganography_load(self, fh):
         """Load hidden data from a file."""
+        self.status.set('Loading hidden data')
         data = steganography.read(fh, self.file_config['original_file'])
         self.vault = Vault()
         self.vault.load_data(data)
+        self.status.set('Hidden data loaded')
 
     def steganography_save(self, fh):
         """Save data hidden in a file."""
+        self.status.set('Hiding data')
         data = self.vault.save_data()
         steganography.write(fh, self.file_config['original_file'], data)
+        self.status.set('Data hidden')
 
     def get_passwords(self, *args):
         """Get and unlock passwords from vault."""
         if not self.verify():
             return
-        self.status.set('Getting passwords')
         if self.file_location.get() == 'Local':
+            self.status.set('Getting local passwords')
             self.make_dirs()
             with open(self.file_config['file_location'], 'rb') as fh:
                 if self.do_steganography.get():
@@ -149,6 +159,7 @@ class GUI():
                 else:
                     self.vault = Vault(fh)
         elif self.file_location.get() == 'Remote':
+            self.status.set('Getting remote passwords')
             try:
                 with ssh.RemoteFile(*self.ssh_config,
                                     self.file_config['file_location'],
@@ -196,6 +207,7 @@ class GUI():
         self.vault.set_objects(objects)
         self.vault.lock(self._password)
         if self.file_location.get() == 'Local':
+            self.status.set('Saving passwords localy')
             self.make_dirs()
             with open(self.file_config['file_location'], 'wb') as fh:
                 if self.do_steganography.get():
@@ -203,6 +215,7 @@ class GUI():
                 else:
                     self.vault.save_file(fh)
         elif self.file_location.get() == 'Remote':
+            self.status.set('Saving passwords remotly')
             with ssh.RemoteFile(*self.ssh_config,
                                 self.file_config['file_location'],
                                 constants.data_dir()) as remote:
@@ -274,6 +287,7 @@ class GUI():
         self.password.set('')
         self.passbox.clear()
         self.status.set('Vault locked')
+        
     def toggle_lock(self):
         """Toggle lock and unlock of vault."""
         if self.password.get() and self.vault and self.vault.locked:
@@ -311,8 +325,7 @@ class PasswordBox(tkinter.ttk.Treeview):
     def add(self, password=None):
         """Add new password to password list."""
         password = password or widgets.AddPassword(self.master).result
-        if not password:
-            return
+        if not password: return
         for index, iid in enumerate(self.get_children()):
             if self.set(iid, 'System').lower() > password[0].lower():
                 self.insert('', index, values=password)
@@ -323,6 +336,7 @@ class PasswordBox(tkinter.ttk.Treeview):
 
     def edit(self, iid):
         """Edit password."""
+        if not iid: return
         values = self.item(iid, 'values')
         result = widgets.AddPassword(self.master, 'Password', values).result
         # We got a result and atleast one field has changed
