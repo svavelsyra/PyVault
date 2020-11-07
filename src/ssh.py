@@ -6,7 +6,7 @@ class RemoteFile():
     """
     Class to handle remote files through ssh.
     """
-    def __init__(self, host, port, username, password, filepath, data_dir):
+    def __init__(self, host, port, username, password, filepath, data_dir, *args, **kwargs):
         self.ssh = paramiko.SSHClient()
         try:
             self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
@@ -18,19 +18,14 @@ class RemoteFile():
         self.filepath = filepath
         self.sftp = None
         self.stat = None
+        self.fh = self._open(*args, **kwargs)
              
     def __enter__(self):
-        return self
+        return self.fh
 
     def __exit__(self, *args):
-        if self.stat:
-            self.sftp.utime(self.filepath, (self.stat.st_atime,
-                                            self.stat.st_mtime))
-        for con in ('sftp', 'ssh'):
-            try:
-                getattr(self, con).close()
-            except:
-                pass
+        self.close()
+
     def _connect(self, host, port, username, password, unknown_host=False):
         try:
             if unknown_host:
@@ -57,8 +52,19 @@ class RemoteFile():
                 self.sftp.stat(current_path)
             except FileNotFoundError:
                 self.sftp.mkdir(current_path)
+
+    def close(self):
+        if self.stat:
+            self.sftp.utime(self.filepath, (self.stat.st_atime,
+                                            self.stat.st_mtime))
+        for con in ('fh', 'sftp', 'ssh'):
+            try:
+                getattr(self, con).close()
+                print('con')
+            except:
+                pass
                 
-    def open(self, *args, **kwargs):
+    def _open(self, *args, **kwargs):
         """Open remote path."""
         path = kwargs.pop('path', self.filepath)
         transport = self.ssh.get_transport()

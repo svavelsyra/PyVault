@@ -163,8 +163,7 @@ class GUI():
             try:
                 with ssh.RemoteFile(*self.ssh_config,
                                     self.file_config['file_location'],
-                                    constants.data_dir()) as remote:
-                    fh = remote.open('rb')
+                                    constants.data_dir(), 'r') as fh:
                     if not fh:
                         return
                     if self.do_steganography.get():
@@ -218,12 +217,11 @@ class GUI():
             self.status.set('Saving passwords remotly')
             with ssh.RemoteFile(*self.ssh_config,
                                 self.file_config['file_location'],
-                                constants.data_dir()) as remote:
-                with remote.open('wb') as fh:
-                    if self.do_steganography.get():
-                        self.steganography_save(fh)
-                    else:
-                        self.vault.save_file(fh)
+                                constants.data_dir(), 'w') as fh:
+                if self.do_steganography.get():
+                    self.steganography_save(fh)
+                else:
+                    self.vault.save_file(fh)
         else:
             tkinter.messagebox.showerror(
                 'Faulty file location',
