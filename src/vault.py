@@ -1,3 +1,4 @@
+import ast
 import base64
 import os
 import pickle
@@ -20,7 +21,7 @@ VALID_PASSWORD_TYPES = ('alpha',
 
 class Vault():
     def __init__(self, data_file=None):
-        self._locked = True
+        self._locked = False
         if data_file:
             self.load_file(data_file)
         else:
@@ -31,19 +32,23 @@ class Vault():
     @property
     def locked(self):
         return self._locked
+    
     def load_data(self, data):
         self.data = pickle.loads(data)
+        self._locked = True
 
     def save_data(self):
         return pickle.dumps(self.data)
     
     def load_file(self, fh):
         self.data = pickle.load(fh)
+        self._locked = True
 
     def save_file(self, fh):
         pickle.dump(self.data, fh)
         
     def lock(self, password):
+        if self._locked: return
         data = pickle.dumps(self.data['vault'])
         key = self.create_key(password,
                               self.data['salt'],
@@ -52,6 +57,7 @@ class Vault():
         self._locked = True
 
     def unlock(self, password):
+        if not self._locked: return
         key = self.create_key(password,
                               self.data['salt'],
                               self.data.get('iterations', 1000000))
@@ -83,6 +89,25 @@ class Vault():
 
     def remove_password(self, obj):
         self.data['vault'].remove(obj)
+
+    def load_clear(self, filepath):
+        if self.locked:
+            raise VaultError('Vault is locked, unlock first!')
+        self._locked = False
+        with open(filepath) as fh:
+            for row in fh:
+                self.add(ast.literal_eval(row.strip()))
+
+    def save_clear(self, filepath):
+        if self.locked:
+            raise VaultError('Vault is locked, please unlock first')
+        with open(filepath, 'w') as fh:
+            for obj in self.data['vault']:
+                print(repr(obj), file=fh)
+            
+
+class VaultError(Exception):
+    pass
         
 def generate_password(password_type='alpha', n=10):
     alphabets = {'alpha': (string.ascii_letters, 'isupper', 'islower'),

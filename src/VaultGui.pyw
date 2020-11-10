@@ -8,12 +8,13 @@ import tkinter.ttk
 import constants
 import ssh
 import steganography
-from vault import Vault
+from vault import Vault, VaultError
 import widgets
 
 class GUI():
     """GUI to handle a password vault."""
     def __init__(self, master):
+        self.startup_ok = False
         self.master = master
         self.master.protocol("WM_DELETE_WINDOW", self.onclose)
         self.title = 'PyVault'
@@ -54,10 +55,6 @@ class GUI():
                                     text='Unlock',
                                     command=self.toggle_lock,
                                     state=tkinter.DISABLED)
-        setup_files = widgets.Box(
-            top, 'Button', text='Setup Files', command=self.setup_files)
-        ssh = widgets.Box(
-            top, 'Button', text='Setup SSH', command=self.setup_ssh)
         add_pass = tkinter.Button(
             bottom, command=self.add_password, text='Add Password')
 
@@ -75,22 +72,33 @@ class GUI():
             top, self.file_location, 'Local', 'Remote')
         file_location.configure(width=15)
 
+        # Menu bar
+        menubar = tkinter.Menu(master, tearoff=0)
+        filemenu = tkinter.Menu(menubar, tearoff=0)
+        filemenu.add_command(label='Setup SSH', command=self.setup_ssh)
+        filemenu.add_command(label='Setup Files', command=self.setup_files)
+        filemenu.add_command(label='Save cleartext', command=self.save_clear)
+        filemenu.add_command(label='Load cleartext', command=self.load_clear)
+        menubar.add_cascade(label="File", menu=filemenu)
+        master.config(menu=menubar)
+
         # Pack it all up
         password.pack(side='left')
         get_pass.pack(side='left', fill=tkinter.Y)
         save_pass.pack(side='left', fill=tkinter.Y)
         self.lock_btn.pack(side='left', fill=tkinter.Y)
-        setup_files.pack(side='left', fill=tkinter.Y)
-        ssh.pack(side='left', fill=tkinter.Y)
         stego.pack(side='left', fill=tkinter.Y)
         file_location.pack(side='left', fill=tkinter.Y)
         add_pass.pack()
         self.onstart()
         password.focus_set()
         self.status.set('Init OK')
+        self.startup_ok = True
         
     def onclose(self):
         """Runs on GUI close to save settings."""
+        # Dont overwrite settings with empty values if startup failed.
+        if not self.startup_ok:return
         if self.dirty() and not tkinter.messagebox.askokcancel(
             'Quit without save?', 'Unsaved passwords exists, quit anyway?'):
             return
@@ -273,7 +281,7 @@ class GUI():
         """Create directory to contain files if it does not exist."""
         dirname = os.path.dirname(self.file_config['file_location'])
         if dirname:
-            os.makedirs(dirname, exsist_ok=True)
+            os.makedirs(dirname, exist_ok=True)
 
     def lock(self):
         """Lock vault, and clear local password list."""
@@ -298,21 +306,55 @@ class GUI():
         self.master.title(self.title + dirty)
         return bool(dirty)
 
+    def save_clear(self):
+        try:
+            self.vault.save_clear('temp.txt')
+        except VaultError as err:
+            self.status.set(err, color='red')
+
+    def load_clear(self):
+        if self.passbox.dirty.get():
+            self.status.set('Save current passwords first', color='red')
+            return
+        if not self.vault:
+            self.vault = Vault()
+        try:
+            self.vault.load_clear('temp.txt')
+        except VaultError as err:
+            self.status.set(err, color='red')
+        else:
+            self.update_password_box()
+
 
 class PasswordBox(tkinter.ttk.Treeview):
     """Class to display password list."""
     def __init__(self, master):
         columns = ('System', 'User Name', 'Password', 'Notes')
-        super().__init__(master,
+        self.f = tkinter.Frame(master)
+        super().__init__(self.f,
                          columns=columns,
                          displaycolumns=('System', 'User Name'),
                          show='headings')
+        super().pack(fill=tkinter.BOTH, expand=1, side='left')
+        sb = tkinter.ttk.Scrollbar(
+            self.f, orient="vertical", command=self.yview)
+        sb.pack(side='right', fill=tkinter.Y)
+        self.configure(yscrollcommand=sb.set)
         for name in columns:
             self.heading(name, text=name)
         self.bind('<ButtonPress-1>', self.on_click)
         self.dirty = tkinter.BooleanVar()
         self.dirty.set(False)
 
+    def pack(self, *args, **kwargs):
+        self.f.pack(*args, **kwargs)
+
+    def place(self, *args, **kwargs):
+        self.f.place(*args, **kwargs)
+
+    def grid(self, *args, **kwargs):
+        self.f.grid(*args, **kwargs)
+        
     def clear(self):
         """Remove all unlocked passwords from the list."""
         children = self.get_children()
