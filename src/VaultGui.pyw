@@ -1,3 +1,4 @@
+import time
 import pickle
 import os
 import tkinter
@@ -47,9 +48,9 @@ class GUI():
 
         # Buttons.
         save_pass = widgets.Box(
-            top, 'Button', text='Save passwords', command=self.set_passwords)
+            top, 'Button', text='Save passwords', command=self.save_encrypted)
         get_pass = widgets.Box(
-            top, 'Button', text='Get passwords', command=self.get_passwords)
+            top, 'Button', text='Load passwords', command=self.load_encrypted)
         self.lock_btn = widgets.Box(top,
                                     'Button',
                                     text='Unlock',
@@ -77,8 +78,22 @@ class GUI():
         filemenu = tkinter.Menu(menubar, tearoff=0)
         filemenu.add_command(label='Setup SSH', command=self.setup_ssh)
         filemenu.add_command(label='Setup Files', command=self.setup_files)
-        filemenu.add_command(label='Save cleartext', command=self.save_clear)
-        filemenu.add_command(label='Load cleartext', command=self.load_clear)
+        filemenu.add_command(
+            label='Save cleartext',
+            command=lambda *args,**kwargs : self.ask_for_file(
+                'save_clear', 'w'))
+        filemenu.add_command(
+            label='Load cleartext',
+            command=lambda *args,**kwargs : self.ask_for_file(
+                'load_clear', 'r'))
+        filemenu.add_command(
+            label='Save encrypted',
+            command=lambda *args,**kwargs : self.ask_for_file(
+                'save_encrypted', 'wb'))
+        filemenu.add_command(
+            label='Load encrypted',
+            command=lambda *args,**kwargs : self.ask_for_file(
+                'load_encrypted', 'rb'))
         menubar.add_cascade(label="File", menu=filemenu)
         master.config(menu=menubar)
 
@@ -137,7 +152,35 @@ class GUI():
         if self.vault and self.vault.locked:
             self.update_password_box()
         else:
-            self.get_passwords()
+            self.load_encrypted()
+
+    def ask_for_file(self, call_type, mode):
+        initialdir = os.path.expanduser('~')
+        initialfile = time.strftime('%Y%m%d-%H%M%S')
+        if self.do_steganography.get():
+            filetypes = (('Image file', '*.png'), ('All files', '*.*'))
+            defaultextension='.png'
+        else:
+            filetypes = (('Text file', '*.txt'), ('All files', '*.*'))
+            defaultextension='.txt'
+        kwargs = {'master': self.master,
+                  'title': 'Filename',
+                  'defaultextension': defaultextension,
+                  'filetypes': filetypes,
+                  'initialdir': initialdir,
+                  'initialfile': initialfile}
+        if 'save' in call_type:
+            path = tkinter.filedialog.asksaveasfilename(**kwargs)
+        elif 'load' in call_type:
+            path = tkinter.filedialog.askopenfilename(**kwargs)
+        if not path: return
+        try:
+            with open(path, mode) as fh:
+                getattr(self, call_type)(fh)
+        except OSError:
+            self.status.set(f'Unable to open file: {path}', color='red')
+
+        
 
     def steganography_load(self, fh):
         """Load hidden data from a file."""
@@ -154,37 +197,36 @@ class GUI():
         steganography.write(fh, self.file_config['original_file'], data)
         self.status.set('Data hidden')
 
-    def get_passwords(self, *args):
+    def load_encrypted(self, fh=False):
         """Get and unlock passwords from vault."""
-        if not self.verify():
+        def load_passwords(fh):
+            if not fh:
+                return
+            if self.do_steganography.get():
+                self.steganography_load(fh)
+            else:
+                self.vault = Vault(fh)
+        if not (fh or self.verify()):
             return
-        if self.file_location.get() == 'Local':
-            self.status.set('Getting local passwords')
+        location = fh.name if fh else self.file_config['file_location']
+        if fh:
+            self.status.set(f'Loading passwords from: {location}')
+            load_passwords(fh)
+        elif self.file_location.get() == 'Local':
+            self.status.set(f'Getting local passwords at: {location}')
             self.make_dirs()
-            with open(self.file_config['file_location'], 'rb') as fh:
-                if self.do_steganography.get():
-                    self.steganography_load(fh)
-                else:
-                    self.vault = Vault(fh)
+            with open(location, 'rb') as fh:
+                load_passwords(fh)
         elif self.file_location.get() == 'Remote':
-            self.status.set('Getting remote passwords')
+            self.status.set(f'Getting remote passwords at: {location}')
             try:
                 with ssh.RemoteFile(*self.ssh_config,
-                                    self.file_config['file_location'],
+                                    location,
                                     constants.data_dir(), 'r') as fh:
-                    if not fh:
-                        return
-                    if self.do_steganography.get():
-                        self.steganography_load(fh)
-                    else:
-                        self.vault = Vault(fh)
+                    load_passwords(fh)
             except Exception as err:
                 self.status.set(err, color='red')
                 return
-        else:
-            tkinter.messagebox.showerror('Set url/local file',
-                                         'URL or Local File has to be set')
-            return
         self.status.set('Passwords successfully recieved')
         self.update_password_box()
 
@@ -202,10 +244,16 @@ class GUI():
         self.passbox.dirty.set(False)
         self.status.set('Passwords updated')
 
-    def set_passwords(self):
+    def save_encrypted(self, fh=False):
         """Save password in to file."""
+        def save_passwords(fh):
+            if self.do_steganography.get():
+                self.steganography_save(fh)
+            else:
+                self.vault.save_file(fh)
+            
         self.status.set('Saving passwords')
-        if not self.verify():
+        if not (fh or self.verify()):
             return
         if not self.vault:
             self.vault = Vault(self.password.get())
@@ -213,30 +261,45 @@ class GUI():
                    self.passbox.get_children()]
         self.vault.set_objects(objects)
         self.vault.lock(self._password)
-        if self.file_location.get() == 'Local':
-            self.status.set('Saving passwords localy')
+        location = fh.name if fh else self.file_config['file_location']
+        if fh:
+            save_passwords(fh)
+            self.status.set(f'Saving passwords at: {location}')
+        elif self.file_location.get() == 'Local':
+            self.status.set(f'Saving passwords localy at: {location}')
             self.make_dirs()
-            with open(self.file_config['file_location'], 'wb') as fh:
-                if self.do_steganography.get():
-                    self.steganography_save(fh)
-                else:
-                    self.vault.save_file(fh)
+            with open(location, 'wb') as fh:
+                save_passwords(fh)
+                
         elif self.file_location.get() == 'Remote':
-            self.status.set('Saving passwords remotly')
+            self.status.set(f'Saving passwords remotly at: {location}')
             with ssh.RemoteFile(*self.ssh_config,
-                                self.file_config['file_location'],
+                                location,
                                 constants.data_dir(), 'w') as fh:
-                if self.do_steganography.get():
-                    self.steganography_save(fh)
-                else:
-                    self.vault.save_file(fh)
-        else:
-            tkinter.messagebox.showerror(
-                'Faulty file location',
-                f'File location is unknow {self.file_location.get()}')
+                save_passwords(fh)
+        
         self.vault.unlock(self._password)
         self.passbox.dirty.set(False)
         self.status.set('Passwords saved')
+
+    def save_clear(self, fh):
+        try:
+            self.vault.save_clear(fh)
+        except VaultError as err:
+            self.status.set(err, color='red')
+
+    def load_clear(self):
+        if self.passbox.dirty.get():
+            self.status.set('Save current passwords first', color='red')
+            return
+        if not self.vault:
+            self.vault = Vault()
+        try:
+            self.vault.load_clear(fh)
+        except VaultError as err:
+            self.status.set(err, color='red')
+        else:
+            self.update_password_box()
 
     def verify(self):
         """Verify mandatory information."""
@@ -305,25 +368,6 @@ class GUI():
         dirty = ' *' if self.passbox.dirty.get() else ''
         self.master.title(self.title + dirty)
         return bool(dirty)
-
-    def save_clear(self):
-        try:
-            self.vault.save_clear('temp.txt')
-        except VaultError as err:
-            self.status.set(err, color='red')
-
-    def load_clear(self):
-        if self.passbox.dirty.get():
-            self.status.set('Save current passwords first', color='red')
-            return
-        if not self.vault:
-            self.vault = Vault()
-        try:
-            self.vault.load_clear('temp.txt')
-        except VaultError as err:
-            self.status.set(err, color='red')
-        else:
-            self.update_password_box()
 
 
 class PasswordBox(tkinter.ttk.Treeview):

@@ -46,6 +46,19 @@ class Vault():
 
     def save_file(self, fh):
         pickle.dump(self.data, fh)
+
+    def load_clear(self, fh):
+        if self.locked:
+            raise VaultError('Vault is locked, unlock first!')
+        self._locked = False
+        for row in fh:
+            self.add(ast.literal_eval(row.strip()))
+
+    def save_clear(self, fh):
+        if self.locked:
+            raise VaultError('Vault is locked, please unlock first')
+        for obj in self.data['vault']:
+            print(repr(obj), file=fh)
         
     def lock(self, password):
         if self._locked: return
@@ -89,22 +102,7 @@ class Vault():
 
     def remove_password(self, obj):
         self.data['vault'].remove(obj)
-
-    def load_clear(self, filepath):
-        if self.locked:
-            raise VaultError('Vault is locked, unlock first!')
-        self._locked = False
-        with open(filepath) as fh:
-            for row in fh:
-                self.add(ast.literal_eval(row.strip()))
-
-    def save_clear(self, filepath):
-        if self.locked:
-            raise VaultError('Vault is locked, please unlock first')
-        with open(filepath, 'w') as fh:
-            for obj in self.data['vault']:
-                print(repr(obj), file=fh)
-            
+        
 
 class VaultError(Exception):
     pass

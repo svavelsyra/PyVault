@@ -60,7 +60,6 @@ class RemoteFile():
         for con in ('fh', 'sftp', 'ssh'):
             try:
                 getattr(self, con).close()
-                print('con')
             except:
                 pass
                 
