@@ -1,9 +1,18 @@
 from tests.fixtures import *
-import vault.vault
+import vault.vault as vault
 
-def test_unlock(vault_data):
-    v = vault.vault.Vault()
-    v.data = vault_data
+def test_unlock(vault_data_locked):
+    v = vault.Vault()
+    v.data = vault_data_locked
+    v._locked = True
     v.unlock('testpass')
-    print(v.data['vault'])
     assert 'test' in v.data['vault']
+
+def test_already_unlocked(vault_data_unlocked):
+    v = vault.Vault()
+    v.data = vault_data_unlocked
+    v.unlock('testpass')
+    assert 'test' in v.data['vault']
+    
+def test_lock():
+    pass
