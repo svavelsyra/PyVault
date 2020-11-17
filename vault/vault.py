@@ -75,7 +75,8 @@ class Vault():
                               self.data['salt'],
                               self.data.get('iterations', 1000000))
         try:
-            self.data['vault'] = pickle.loads(Fernet(key).decrypt(self.data['vault']))
+            self.data['vault'] = pickle.loads(Fernet(key).decrypt(
+                self.data['vault']))
             self._locked = False
         except InvalidToken:
             pass
