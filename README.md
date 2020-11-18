@@ -21,8 +21,8 @@ Setup
     - Password - Password to login with at host, will not be saved and has to be entered each time program is started. Recomended usage is through key exchange, see below
   - Setup Steganography (For hiding the vault in an image)
     - File location - path to vault storage E.g. images/picture.png
-    - Original file - path to local file with the original png picture to compare against
-- Check Steganography (If Steganography is to be used)
+    - Original file - path to local file with the original png picture to compare against (Important that its a png and not jpeg as jpeg compression is not stable)
+- Check Steganography (If Steganography is to be used) https://en.wikipedia.org/wiki/Steganography
 - Chose Local/Remote (Where to store vault)
 
 Basic usage
