@@ -4,12 +4,12 @@ Python password vault to keep track of password either localy or centralized in 
 As this is a hobby project I cannot guarantee any functionallity or that no data loss will occur, but as I use it personally I will do my best to avoid it.
 Currently development is done on Python 3.9 and the client runs on Win10 while the cloud is run on Raspbian on a Raspberry Pi 2.
 
-Prerequisites
+**Prerequisites**
 - cryptography
 - paramiko
 - pillow
 
-Setup
+**Setup**
 - Install prerequisites
 - Clone repo
 - Run VaultGui.pyw (For GUI)
@@ -25,7 +25,7 @@ Setup
 - Check Steganography (If Steganography is to be used) https://en.wikipedia.org/wiki/Steganography
 - Chose Local/Remote (Where to store vault)
 
-Basic usage
+**Basic usage**
 - Add passwords by pressing "Add Password" button.
 - Chose a password in password box.
 - Press Save passwords to save passwords in vault.
