@@ -40,7 +40,7 @@ class RemoteFile():
             if tkinter.messagebox.askokcancel(
                 "Unknown host", "Unknown host!\n"
                 "Do you want to continue connecting?"):
-                self.connect(host, port, username, password, True)
+                self._connect(host, port, username, password, True)
             else:
                 self.ssh.close()
 
