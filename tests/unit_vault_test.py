@@ -1,5 +1,5 @@
 from tests.fixtures import *
-import vault.vault as vault
+import acid_vault.vault as vault
 
 def test_unlock(vault_data_locked):
     v = vault.Vault()

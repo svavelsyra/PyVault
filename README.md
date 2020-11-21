@@ -11,7 +11,7 @@ Currently development is done on Python 3.9 and the client runs on Win10 while t
 
 **Setup**
 - Install prerequisites
-- Clone repo
+- Clone repo or pip install acid_vault
 - Run VaultGui.pyw (For GUI)
 - Setup your vault in file menu (Only neccesercy for Cloud and/or Stegography)
   - Setup SSH for cloud (For remote storage of vault)
