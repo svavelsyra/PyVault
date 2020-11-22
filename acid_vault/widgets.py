@@ -162,19 +162,38 @@ class SetupSSH(Dialog):
 
 class SetupFiles(Dialog):
     def body(self, master, initial_data):
-        for key in ('file_location', 'original_file'):
+        # Checkboxes.
+        for key in ('use_steganography', 'clear_on_exit'):
+            setattr(self, key, tkinter.BooleanVar())
+            c = tkinter.Checkbutton(
+                master,
+                text=key.replace('_', ' ').title(),
+                variable=getattr(self, key),
+                anchor='w')
+            c.pack(expand=1, fill=tkinter.X)
+        if initial_data:
+            self.use_steganography.set(initial_data.get(
+                'use_steganography', False))
+            self.clear_on_exit.set(initial_data.get('clear_on_exit', True))
+
+        # Entries
+        for key, name in (('file_location', 'Password file location'),
+                          ('original_file', 'Steganography original file location')):
             setattr(self, key, tkinter.StringVar())
-            e = LabelEntry(master,
-                           width=50,
-                           label=key.title().replace('_', ' '),
-                           textvariable=getattr(self, key))
-            e.pack()
             if initial_data:
                 getattr(self, key).set(initial_data.get(key, ''))
 
+            e = LabelEntry(master,
+                           width=50,
+                           label=name,
+                           textvariable=getattr(self, key))
+            e.pack()
+            
+
     def apply(self):
         self.result = {key: getattr(self, key).get() for
-                       key in ('file_location', 'original_file')}
+                       key in ('file_location', 'original_file',
+                               'use_steganography', 'clear_on_exit')}
 
 class Box(tkinter.Frame):
     """Frame box to make widgets align."""

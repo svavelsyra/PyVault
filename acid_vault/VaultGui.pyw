@@ -60,11 +60,6 @@ class GUI():
             bottom, command=self.add_password, text='Add Password')
 
         # Checkboxes
-        self.do_steganography = tkinter.IntVar()
-        stego = widgets.Box(top,
-                            'Checkbutton',
-                            text='Steganography',
-                            variable=self.do_steganography)
         
         # Option menues
         self.file_location = tkinter.StringVar()
@@ -102,8 +97,7 @@ class GUI():
         get_pass.pack(side='left', fill=tkinter.Y)
         save_pass.pack(side='left', fill=tkinter.Y)
         self.lock_btn.pack(side='left', fill=tkinter.Y)
-        stego.pack(side='left', fill=tkinter.Y)
-        file_location.pack(side='left', fill=tkinter.Y)
+        file_location.pack(side='right', fill=tkinter.Y)
         add_pass.pack()
         self.onstart()
         password.focus_set()
@@ -119,12 +113,15 @@ class GUI():
             return
         try:
             ssh_config = self.ssh_config
+            file_config = self.file_config
             # Clearing SSH-Password if set
             if ssh_config:
                 ssh_config[-1] = ''
+            if file_config and file_config.get('clear_on_exit'):
+                file_config = {}
             obj = {'attributes': {'ssh_config': ssh_config,
-                                  'file_config': self.file_config},
-                   'widgets': {'do_steganography': self.do_steganography.get(),
+                                  'file_config': file_config},
+                   'widgets': {#'do_steganography': self.do_steganography.get(),
                                'file_location': self.file_location.get()}}
             with open(os.path.join(constants.data_dir(), '.vault'), 'wb') as fh:
                 pickle.dump(obj, fh)
@@ -157,7 +154,7 @@ class GUI():
     def ask_for_file(self, call_type, mode):
         initialdir = os.path.expanduser('~')
         initialfile = time.strftime('%Y%m%d-%H%M%S')
-        if self.do_steganography.get():
+        if self.file_config.get('use_steganography'):
             filetypes = (('Image file', '*.png'), ('All files', '*.*'))
             defaultextension='.png'
         else:
@@ -180,8 +177,6 @@ class GUI():
         except OSError:
             self.status.set(f'Unable to open file: {path}', color='red')
 
-        
-
     def steganography_load(self, fh):
         """Load hidden data from a file."""
         self.status.set('Loading hidden data')
@@ -202,7 +197,7 @@ class GUI():
         def load_passwords(fh):
             if not fh:
                 return
-            if self.do_steganography.get():
+            if self.file_config.get('use_steganography'):
                 self.steganography_load(fh)
             else:
                 self.vault = Vault(fh)
@@ -247,7 +242,7 @@ class GUI():
     def save_encrypted(self, fh=False):
         """Save password in to file."""
         def save_passwords(fh):
-            if self.do_steganography.get():
+            if self.file_config.get('use_steganography'):
                 self.steganography_save(fh)
             else:
                 self.vault.save_file(fh)
