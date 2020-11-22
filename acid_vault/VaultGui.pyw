@@ -1,16 +1,20 @@
-import time
-import pickle
-import os
-import tkinter
-import tkinter.messagebox
-import tkinter.filedialog
-import tkinter.ttk
+try:
+    import time
+    import pickle
+    import os
+    import tkinter
+    import tkinter.messagebox
+    import tkinter.filedialog
+    import tkinter.ttk
 
-import constants
-import ssh
-import steganography
-from vault import Vault, VaultError
-import widgets
+    import constants
+    import ssh
+    import steganography
+    from vault import Vault, VaultError
+    import widgets
+except ImportError as err:
+    tkinter.messagebox.showerror('Failed to import', err)
+    raise
 
 class GUI():
     """GUI to handle a password vault."""
