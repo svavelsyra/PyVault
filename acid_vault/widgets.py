@@ -1,4 +1,5 @@
 import tkinter
+from version import *
 
 from vault import generate_password
 from vault import VALID_PASSWORD_TYPES
@@ -6,7 +7,7 @@ from vault import VALID_PASSWORD_TYPES
 class Dialog(tkinter.Toplevel):
     """
     Parent Dialog frame, inherit and override
-    boddy and apply methods.
+    body and apply methods.
     """
     def __init__(self, parent, title=None, initial_data=None):
         super().__init__(parent)
@@ -194,6 +195,30 @@ class SetupFiles(Dialog):
         self.result = {key: getattr(self, key).get() for
                        key in ('file_location', 'original_file',
                                'use_steganography', 'clear_on_exit')}
+
+class About(Dialog):
+    def body(self, master, _):
+        for name, var in (('', '__summary__'),
+                          ('Version: ', '__version__'),
+                          ('Author: ', '__author__'),
+                          ('Contact: ', '__email__'),
+                          ('Licence: ', '__license__'),
+                          ('', '__uri__')):
+            l = tkinter.Label(master, text=f'{name} {eval(var)}')
+            l.pack(fill=tkinter.X, expand=1)
+
+    def buttonbox(self):
+        """Standard OK and Cancel buttons."""
+        box = tkinter.ttk.Frame(self)
+
+        w = tkinter.ttk.Button(
+            box, text="OK", width=10, command=self.ok, default=tkinter.ACTIVE)
+        w.pack(side='left', padx=5, pady=5)
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+
+        box.pack()
+        return box
 
 class Box(tkinter.Frame):
     """Frame box to make widgets align."""

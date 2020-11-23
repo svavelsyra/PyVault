@@ -3,15 +3,19 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+meta_data = {}
+with open('acid_vault/version.py') as fh:
+    exec(fh.read(), meta_data)
+
 setuptools.setup(
-    name="acid_vault",
-    version="0.0.2",
-    author="Nils Nyman-Waara",
-    author_email="acid_vault@h2so4.se",
-    description="Password Vault",
+    name=meta_data['__title__'],
+    version=meta_data['__version__'],
+    author=meta_data['__author__'],
+    author_email=meta_data['__email__'],
+    description=meta_data['__summary__'],
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/svavelsyra/PyVault",
+    url=meta_data["__uri__"],
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",

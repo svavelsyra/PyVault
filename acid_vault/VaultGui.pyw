@@ -1,3 +1,4 @@
+from version import *
 try:
     import time
     import pickle
@@ -75,6 +76,7 @@ class GUI():
         # Menu bar
         menubar = tkinter.Menu(master, tearoff=0)
         filemenu = tkinter.Menu(menubar, tearoff=0)
+        helpmenu = tkinter.Menu(menubar, tearoff=0)
         filemenu.add_command(label='Setup SSH', command=self.setup_ssh)
         filemenu.add_command(label='Setup Files', command=self.setup_files)
         filemenu.add_command(
@@ -93,7 +95,11 @@ class GUI():
             label='Load encrypted',
             command=lambda *args,**kwargs : self.ask_for_file(
                 'load_encrypted', 'rb'))
+        helpmenu.add_command(
+            label='About',
+            command=lambda:widgets.About(self.master, 'About'))
         menubar.add_cascade(label="File", menu=filemenu)
+        menubar.add_cascade(label='Help', menu=helpmenu)
         master.config(menu=menubar)
 
         # Pack it all up
