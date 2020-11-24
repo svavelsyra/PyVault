@@ -1,5 +1,8 @@
 from version import *
 try:
+    import datetime
+    from distutils.version import LooseVersion
+    import json
     import time
     import pickle
     import os
@@ -7,6 +10,7 @@ try:
     import tkinter.messagebox
     import tkinter.filedialog
     import tkinter.ttk
+    import urllib.request
 
     import constants
     import ssh
@@ -28,6 +32,7 @@ class GUI():
         self.vault = None
         self.ssh_config = []
         self.file_config = {}
+        self.last_update = False
         
         top = tkinter.Frame(master)
         top.pack(side='top', fill=tkinter.X)
@@ -111,7 +116,6 @@ class GUI():
         add_pass.pack()
         self.onstart()
         password.focus_set()
-        self.status.set('Init OK')
         self.startup_ok = True
         
     def onclose(self):
@@ -130,9 +134,9 @@ class GUI():
             if file_config and file_config.get('clear_on_exit'):
                 file_config = {}
             obj = {'attributes': {'ssh_config': ssh_config,
-                                  'file_config': file_config},
-                   'widgets': {#'do_steganography': self.do_steganography.get(),
-                               'file_location': self.file_location.get()}}
+                                  'file_config': file_config,
+                                  'last_update': self.last_update},
+                   'widgets': {'file_location': self.file_location.get()}}
             with open(os.path.join(constants.data_dir(), '.vault'), 'wb') as fh:
                 pickle.dump(obj, fh)
         except Exception as err:
@@ -152,6 +156,12 @@ class GUI():
                     print(err)
             for key, value in obj['attributes'].items():
                 setattr(self, key, value)
+            now = datetime.datetime.now()
+            if not self.last_update or now - self.last_update > datetime.timedelta(days=7):
+                self.last_update = now
+                if self.check_version('acid_vault') != __version__:
+                    self.status.set('New version avaliable at pypi', 'green')
+
         except Exception as err:
             print(err)
 
@@ -305,6 +315,13 @@ class GUI():
             self.status.set(err, color='red')
         else:
             self.update_password_box()
+
+    def check_version(self, name):
+        pypi_url = f'https://pypi.org/pypi/{name}/json'
+        response = urllib.request.urlopen(pypi_url, timeout=5).read().decode()
+        latest_version = max(LooseVersion(s) for s in
+                             json.loads(response)['releases'].keys())
+        return latest_version
 
     def verify(self):
         """Verify mandatory information."""
