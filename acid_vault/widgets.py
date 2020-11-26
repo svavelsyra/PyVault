@@ -91,6 +91,8 @@ class Dialog(tkinter.Toplevel):
 
 class AddPassword(Dialog):
     def body(self, master, initial_data):
+        self.timer = Timer(master, self.close, 5000*60)
+        master.bind_all('<Enter>', self.timer.reset)
         """Body of set key dialog."""
         for index, key in enumerate(('system',
                                      'username',
@@ -133,6 +135,10 @@ class AddPassword(Dialog):
                        self.username.get(),
                        self.password.get(),
                        self.notes.get())
+
+    def close(self):
+        self.timer.stop()
+        self.destroy()
         
 
 class SetupSSH(Dialog):
@@ -267,3 +273,22 @@ class LabelEntry(tkinter.Frame):
 
     def bind(self, *args, **kwargs):
         self._entry.bind(*args, **kwargs)
+
+class Timer():
+    """Timer class to triger call back after given time."""
+    def __init__(self, master, callback, after):
+        self.master = master
+        self.callback = callback
+        self.after = after
+        self.timer = master.after(self.after, self.callback)
+
+    def reset(self, *args, **kwargs):
+        """Reset timer"""
+        self.timer and self.master.after_cancel(self.timer)
+        self.timer = self.master.after(self.after, self.callback)
+
+    def stop(self):
+        self.timer and self.master.after_cancel(self.timer)
+
+    def start(self):
+        self.timer = master.after(self.after, self.callback)

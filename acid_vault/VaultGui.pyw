@@ -53,7 +53,7 @@ class GUI():
 
         password.bind('<Return>', self.on_return_key)
         # Activity sensor.
-        timer = Timer(self.master, self.lock, 5000*60)
+        timer = widgets.Timer(self.master, self.lock, 5000*60)
         master.bind_all('<Enter>', timer.reset)
 
         # Buttons.
@@ -456,19 +456,6 @@ class PasswordBox(tkinter.ttk.Treeview):
         if region == 'heading':
             return
         self.edit(self.identify_row(event.y))
-
-class Timer():
-    """Timer class to triger call back after given time."""
-    def __init__(self, master, callback, after):
-        self.master = master
-        self.callback = callback
-        self.after = after
-        self.timer = master.after(after, callback)
-
-    def reset(self, *args, **kwargs):
-        """Reset timer"""
-        self.timer and self.master.after_cancel(self.timer)
-        self.timer = self.master.after(self.after, self.callback)
  
 tk = tkinter.Tk()
 GUI(tk)
