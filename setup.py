@@ -17,6 +17,8 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url=meta_data["__uri__"],
     packages=setuptools.find_packages(),
+    package_data={'acid_vault': ['*.pyw']},
+    include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU Affero General Public License v3",
