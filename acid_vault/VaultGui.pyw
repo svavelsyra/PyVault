@@ -13,6 +13,7 @@ try:
     import urllib.request
 
     import constants
+    import legacy_load
     import ssh
     import steganography
     from vault import Vault, VaultError
@@ -30,7 +31,7 @@ class GUI():
         self.title = 'PyVault'
         self.master.title(self.title)
         self.vault = None
-        self.ssh_config = []
+        self.ssh_config = {}
         self.file_config = {}
         self.last_update = False
         
@@ -130,13 +131,14 @@ class GUI():
             file_config = self.file_config
             # Clearing SSH-Password if set
             if ssh_config:
-                ssh_config[-1] = ''
+                ssh_config['password'] = ''
             if file_config and file_config.get('clear_on_exit'):
                 file_config = {}
             obj = {'attributes': {'ssh_config': ssh_config,
                                   'file_config': file_config,
                                   'last_update': self.last_update},
-                   'widgets': {'file_location': self.file_location.get()}}
+                   'widgets': {'file_location': self.file_location.get()},
+                   'version': '1.0.0'}
             with open(os.path.join(constants.data_dir(), '.vault'), 'wb') as fh:
                 pickle.dump(obj, fh)
         except Exception as err:
@@ -149,6 +151,8 @@ class GUI():
         try:
             with open(os.path.join(constants.data_dir(), '.vault'), 'rb') as fh:
                 obj = pickle.load(fh)
+            if not obj.get('version') == '1.0.0':
+                obj = legacy_load.legacy_load(obj)
             for key, value in obj['widgets'].items():
                 try:
                     getattr(self, key).set(value)
@@ -235,7 +239,7 @@ class GUI():
         elif self.file_location.get() == 'Remote':
             self.status.set(f'Getting remote passwords at: {location}')
             try:
-                with ssh.RemoteFile(*self.ssh_config,
+                with ssh.RemoteFile(self.ssh_config,
                                     location,
                                     constants.data_dir(), 'r') as fh:
                     load_passwords(fh)
@@ -288,7 +292,7 @@ class GUI():
                 
         elif self.file_location.get() == 'Remote':
             self.status.set(f'Saving passwords remotly at: {location}')
-            with ssh.RemoteFile(*self.ssh_config,
+            with ssh.RemoteFile(self.ssh_config,
                                 location,
                                 constants.data_dir(), 'w') as fh:
                 save_passwords(fh)
