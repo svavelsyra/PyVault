@@ -144,10 +144,7 @@ class AddPassword(Dialog):
 class SetupSSH(Dialog):
     def body(self, master, initial_data):
         """Body of set key dialog."""
-        for index, key in enumerate(('host',
-                                     'port',
-                                     'username',
-                                     'password')):
+        for key in ('host', 'port', 'username','password'):
             setattr(self, key, tkinter.StringVar())
             e = LabelEntry(master,
                            width=50,
