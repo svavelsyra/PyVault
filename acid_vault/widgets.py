@@ -144,10 +144,7 @@ class AddPassword(Dialog):
 class SetupSSH(Dialog):
     def body(self, master, initial_data):
         """Body of set key dialog."""
-        for index, key in enumerate(('host',
-                                     'port',
-                                     'username',
-                                     'password')):
+        for key in ('host', 'port', 'username','password'):
             setattr(self, key, tkinter.StringVar())
             e = LabelEntry(master,
                            width=50,
@@ -158,14 +155,14 @@ class SetupSSH(Dialog):
                 e.set_config(show='*')
             if initial_data:
                 try:
-                    getattr(self, key).set(initial_data[index])
-                except IndexError:
+                    getattr(self, key).set(initial_data[key])
+                except KeyError:
                     pass
         
     def apply(self):
         """Set result upon OK button press."""
-        self.result = [getattr(self, key).get() for
-                       key in ('host', 'port', 'username', 'password')]
+        self.result = {key: getattr(self, key).get() for
+                       key in ('host', 'port', 'username', 'password')}
 
 class SetupFiles(Dialog):
     def body(self, master, initial_data):
