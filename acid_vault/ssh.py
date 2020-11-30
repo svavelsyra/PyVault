@@ -23,7 +23,8 @@ class RemoteFile():
     Class to handle remote files through ssh.
     """
     def __init__(self, ssh_params, filepath, data_dir, *args, **kwargs):
-        params = [ssh_params[x] for x in ('host', 'port', 'username', 'password')]
+        host, port, username, password = [ssh_params[x] for x in
+                                          ('host', 'port', 'username', 'password')]
         self.ssh = paramiko.SSHClient()
         try:
             self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
