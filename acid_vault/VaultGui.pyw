@@ -18,8 +18,6 @@
 from version import *
 try:
     import datetime
-    from distutils.version import LooseVersion
-    import json
     import time
     import pickle
     import os
@@ -27,7 +25,6 @@ try:
     import tkinter.messagebox
     import tkinter.filedialog
     import tkinter.ttk
-    import urllib.request
 
     import constants
     import legacy_load
@@ -180,7 +177,7 @@ class GUI():
             now = datetime.datetime.now()
             if not self.last_update or now - self.last_update > datetime.timedelta(days=7):
                 self.last_update = now
-                if self.check_version('acid_vault') != __version__:
+                if widgets.check_version('acid_vault') != __version__:
                     self.status.set('New version avaliable at pypi', 'green')
 
         except Exception as err:
@@ -336,13 +333,6 @@ class GUI():
             self.status.set(err, color='red')
         else:
             self.update_password_box()
-
-    def check_version(self, name):
-        pypi_url = f'https://pypi.org/pypi/{name}/json'
-        response = urllib.request.urlopen(pypi_url, timeout=5).read().decode()
-        latest_version = max(LooseVersion(s) for s in
-                             json.loads(response)['releases'].keys())
-        return latest_version
 
     def verify(self):
         """Verify mandatory information."""

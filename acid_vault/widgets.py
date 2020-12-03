@@ -14,9 +14,15 @@
 # You should have received a copy of the GNU Affero General Public License    #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
+from distutils.version import LooseVersion
+import json
+import os
+import subprocess
+import sys
 import tkinter
-from version import *
+import urllib.request
 
+from version import *
 from vault import generate_password
 from vault import VALID_PASSWORD_TYPES
 
@@ -226,6 +232,26 @@ class About(Dialog):
             l = tkinter.Label(master, text=f'{name} {eval(var)}')
             l.pack(fill=tkinter.X, expand=1)
 
+        version = check_version('acid_vault')
+        if version != __version__:
+            l = tkinter.Label(
+                master, text=f'Version on PyPi: {version}')
+            l.pack(fill=tkinter.X, expand=1)
+            b = tkinter.Button(master,
+                               text='Update (Will restart program)',
+                               command=lambda:self.update(version))
+            b.pack()
+
+    def update(self, version):
+        p = subprocess.Popen(
+            [sys.executable,'-m', 'pip', 'install', f'acid_vault=={version}'],
+            stdout=subprocess.PIPE)
+        p.wait()
+        print(str(p.stdout.read(), 'utf-8'))
+        path = os.path.join(os.path.dirname(__file__), 'VaultGui.pyw')
+        print(f'Starting path: {path}')
+        os.execv(sys.executable, [sys.executable, path])
+
     def buttonbox(self):
         """Standard OK and Cancel buttons."""
         box = tkinter.ttk.Frame(self)
@@ -305,3 +331,10 @@ class Timer():
 
     def start(self):
         self.timer = master.after(self.after, self.callback)
+
+def check_version(name):
+        pypi_url = f'https://pypi.org/pypi/{name}/json'
+        response = urllib.request.urlopen(pypi_url, timeout=5).read().decode()
+        latest_version = max(LooseVersion(s) for s in
+                             json.loads(response)['releases'].keys())
+        return latest_version
