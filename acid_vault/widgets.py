@@ -22,9 +22,11 @@ import sys
 import tkinter
 import urllib.request
 
-from version import *
+from version import __version__, __author__, __email__  # noqa:F401,E501 These are actually used
+from version import __license__, __uri__, __summary__  # noqa:F401,E501 These are actually used
 from vault import generate_password
 from vault import VALID_PASSWORD_TYPES
+
 
 class Dialog(tkinter.Toplevel):
     """
@@ -111,6 +113,7 @@ class Dialog(tkinter.Toplevel):
         """Apply result on OK button press, override in child class."""
         pass
 
+
 class AddPassword(Dialog):
     def body(self, master, initial_data):
         self.timer = Timer(master, self.close, 5000*60)
@@ -137,20 +140,19 @@ class AddPassword(Dialog):
         pw_len.set(10)
         gen_pass = tkinter.OptionMenu(f, pw_type, *VALID_PASSWORD_TYPES)
         gen_pass.configure(width=20)
-        length = tkinter.OptionMenu(f, pw_len, *range(4,16))
+        length = tkinter.OptionMenu(f, pw_len, *range(4, 16))
         length.configure(width=2)
-        
+
         gen_pass.pack(side='left')
         length.pack(side='left')
         b = tkinter.Button(
             f,
             text='Generate Password',
-            command=lambda:self.password.set(
+            command=lambda: self.password.set(
                 generate_password(
                     pw_type.get(), pw_len.get())))
         b.pack(side='left')
-                
-        
+
     def apply(self):
         """Set result upon OK button press."""
         self.result = (self.system.get(),
@@ -161,12 +163,19 @@ class AddPassword(Dialog):
     def close(self):
         self.timer.stop()
         self.destroy()
-        
+
 
 class SetupSSH(Dialog):
     def body(self, master, initial_data):
-        """Body of set key dialog."""
-        for key in ('host', 'port', 'username','password'):
+        """Body of SSH settings dialog."""
+        self.clear_on_exit = tkinter.BooleanVar()
+        self.clear_on_exit.set(initial_data.get('clear_on_exit', True))
+        clear_on_exit = tkinter.Checkbutton(master,
+                                            text='Clear SSH settings on exit',
+                                            variable=self.clear_on_exit,
+                                            anchor='w')
+        clear_on_exit.pack(expand=1, fill=tkinter.X)
+        for key in ('host', 'port', 'username', 'password'):
             setattr(self, key, tkinter.StringVar())
             e = LabelEntry(master,
                            width=50,
@@ -180,11 +189,13 @@ class SetupSSH(Dialog):
                     getattr(self, key).set(initial_data[key])
                 except KeyError:
                     pass
-        
+
     def apply(self):
         """Set result upon OK button press."""
         self.result = {key: getattr(self, key).get() for
-                       key in ('host', 'port', 'username', 'password')}
+                       key in ('host', 'port', 'username',
+                               'password', 'clear_on_exit')}
+
 
 class SetupFiles(Dialog):
     def body(self, master, initial_data):
@@ -203,8 +214,10 @@ class SetupFiles(Dialog):
             self.clear_on_exit.set(initial_data.get('clear_on_exit', True))
 
         # Entries
-        for key, name in (('file_location', 'Password file location'),
-                          ('original_file', 'Steganography original file location')):
+        for key, name in (('file_location',
+                           'Password file location'),
+                          ('original_file',
+                           'Steganography original file location')):
             setattr(self, key, tkinter.StringVar())
             if initial_data:
                 getattr(self, key).set(initial_data.get(key, ''))
@@ -214,12 +227,12 @@ class SetupFiles(Dialog):
                            label=name,
                            textvariable=getattr(self, key))
             e.pack()
-            
 
     def apply(self):
         self.result = {key: getattr(self, key).get() for
                        key in ('file_location', 'original_file',
                                'use_steganography', 'clear_on_exit')}
+
 
 class About(Dialog):
     def body(self, master, _):
@@ -229,22 +242,22 @@ class About(Dialog):
                           ('Contact: ', '__email__'),
                           ('Licence: ', '__license__'),
                           ('', '__uri__')):
-            l = tkinter.Label(master, text=f'{name} {eval(var)}')
-            l.pack(fill=tkinter.X, expand=1)
+            label = tkinter.Label(master, text=f'{name} {eval(var)}')
+            label.pack(fill=tkinter.X, expand=1)
 
         version = check_version('acid_vault')
         if version != __version__:
-            l = tkinter.Label(
+            label = tkinter.Label(
                 master, text=f'Version on PyPi: {version}')
-            l.pack(fill=tkinter.X, expand=1)
-            b = tkinter.Button(master,
-                               text='Update (Will restart program)',
-                               command=lambda:self.update(version))
-            b.pack()
+            label.pack(fill=tkinter.X, expand=1)
+            button = tkinter.Button(master,
+                                    text='Update (Will restart program)',
+                                    command=lambda: self.update(version))
+            button.pack()
 
     def update(self, version):
         p = subprocess.Popen(
-            [sys.executable,'-m', 'pip', 'install', f'acid_vault=={version}'],
+            [sys.executable, '-m', 'pip', 'install', f'acid_vault=={version}'],
             stdout=subprocess.PIPE)
         p.wait()
         print(str(p.stdout.read(), 'utf-8'))
@@ -265,6 +278,7 @@ class About(Dialog):
         box.pack()
         return box
 
+
 class Box(tkinter.Frame):
     """Frame box to make widgets align."""
     def __init__(self, master, widget_type, *args, **kwargs):
@@ -276,6 +290,7 @@ class Box(tkinter.Frame):
 
     def config(self, *args, **kwargs):
         self.widget.config(*args, **kwargs)
+
 
 class StatusBar(tkinter.Label):
     def __init__(self, master, *args, **kwargs):
@@ -289,6 +304,7 @@ class StatusBar(tkinter.Label):
         self._data.set(data)
         self.config(bg=color)
         self.master.update_idletasks()
+
 
 class LabelEntry(tkinter.Frame):
     def __init__(self, master, *args, **kwargs):
@@ -313,6 +329,7 @@ class LabelEntry(tkinter.Frame):
     def bind(self, *args, **kwargs):
         self._entry.bind(*args, **kwargs)
 
+
 class Timer():
     """Timer class to triger call back after given time."""
     def __init__(self, master, callback, after):
@@ -330,11 +347,12 @@ class Timer():
         self.timer and self.master.after_cancel(self.timer)
 
     def start(self):
-        self.timer = master.after(self.after, self.callback)
+        self.timer = self.master.after(self.after, self.callback)
+
 
 def check_version(name):
-        pypi_url = f'https://pypi.org/pypi/{name}/json'
-        response = urllib.request.urlopen(pypi_url, timeout=5).read().decode()
-        latest_version = max(LooseVersion(s) for s in
-                             json.loads(response)['releases'].keys())
-        return latest_version
+    pypi_url = f'https://pypi.org/pypi/{name}/json'
+    response = urllib.request.urlopen(pypi_url, timeout=5).read().decode()
+    latest_version = max(LooseVersion(s) for s in
+                         json.loads(response)['releases'].keys())
+    return latest_version

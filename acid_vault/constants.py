@@ -17,6 +17,7 @@
 import os
 import platform
 
+
 def data_dir():
     system = platform.system()
     if system == 'Windows':

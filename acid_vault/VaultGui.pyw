@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
 
-from version import *
+from version import __version__
 try:
     import datetime
     import time
@@ -36,6 +36,7 @@ except ImportError as err:
     tkinter.messagebox.showerror('Failed to import', err)
     raise
 
+
 class GUI():
     """GUI to handle a password vault."""
     def __init__(self, master):
@@ -48,7 +49,7 @@ class GUI():
         self.ssh_config = {}
         self.file_config = {}
         self.last_update = False
-        
+
         top = tkinter.Frame(master)
         top.pack(side='top', fill=tkinter.X)
         self.passbox = PasswordBox(master)
@@ -85,7 +86,7 @@ class GUI():
             bottom, command=self.add_password, text='Add Password')
 
         # Checkboxes
-        
+
         # Option menues
         self.file_location = tkinter.StringVar()
         self.file_location.set('Local')
@@ -101,23 +102,23 @@ class GUI():
         filemenu.add_command(label='Setup Files', command=self.setup_files)
         filemenu.add_command(
             label='Save cleartext',
-            command=lambda *args,**kwargs : self.ask_for_file(
+            command=lambda *args, **kwargs: self.ask_for_file(
                 'save_clear', 'w'))
         filemenu.add_command(
             label='Load cleartext',
-            command=lambda *args,**kwargs : self.ask_for_file(
+            command=lambda *args, **kwargs: self.ask_for_file(
                 'load_clear', 'r'))
         filemenu.add_command(
             label='Save encrypted',
-            command=lambda *args,**kwargs : self.ask_for_file(
+            command=lambda *args, **kwargs: self.ask_for_file(
                 'save_encrypted', 'wb'))
         filemenu.add_command(
             label='Load encrypted',
-            command=lambda *args,**kwargs : self.ask_for_file(
+            command=lambda *args, **kwargs: self.ask_for_file(
                 'load_encrypted', 'rb'))
         helpmenu.add_command(
             label='About',
-            command=lambda:widgets.About(self.master, 'About'))
+            command=lambda: widgets.About(self.master, 'About'))
         menubar.add_cascade(label="File", menu=filemenu)
         menubar.add_cascade(label='Help', menu=helpmenu)
         master.config(menu=menubar)
@@ -132,13 +133,15 @@ class GUI():
         self.onstart()
         password.focus_set()
         self.startup_ok = True
-        
+
     def onclose(self):
         """Runs on GUI close to save settings."""
         # Dont overwrite settings with empty values if startup failed.
-        if not self.startup_ok:return
+        if not self.startup_ok:
+            return
         if self.dirty() and not tkinter.messagebox.askokcancel(
-            'Quit without save?', 'Unsaved passwords exists, quit anyway?'):
+                'Quit without save?',
+                'Unsaved passwords exists, quit anyway?'):
             return
         try:
             ssh_config = self.ssh_config
@@ -146,6 +149,8 @@ class GUI():
             # Clearing SSH-Password if set
             if ssh_config:
                 ssh_config['password'] = ''
+            if ssh_config and ssh_config.get('clear_on_exit'):
+                ssh_config = {}
             if file_config and file_config.get('clear_on_exit'):
                 file_config = {}
             obj = {'attributes': {'ssh_config': ssh_config,
@@ -153,7 +158,8 @@ class GUI():
                                   'last_update': self.last_update},
                    'widgets': {'file_location': self.file_location.get()},
                    'version': '1.0.0'}
-            with open(os.path.join(constants.data_dir(), '.vault'), 'wb') as fh:
+            path = os.path.join(constants.data_dir(), '.vault')
+            with open(path, 'wb') as fh:
                 pickle.dump(obj, fh)
         except Exception as err:
             print(err)
@@ -163,7 +169,8 @@ class GUI():
     def onstart(self):
         """Runs on GUI start to load saved settings."""
         try:
-            with open(os.path.join(constants.data_dir(), '.vault'), 'rb') as fh:
+            path = os.path.join(constants.data_dir(), '.vault')
+            with open(path, 'rb') as fh:
                 obj = pickle.load(fh)
             if not obj.get('version') == '1.0.0':
                 obj = legacy_load.legacy_load(obj)
@@ -175,7 +182,8 @@ class GUI():
             for key, value in obj['attributes'].items():
                 setattr(self, key, value)
             now = datetime.datetime.now()
-            if not self.last_update or now - self.last_update > datetime.timedelta(days=7):
+            t_delta = datetime.timedelta(days=7)
+            if not self.last_update or now - self.last_update > t_delta:
                 self.last_update = now
                 if widgets.check_version('acid_vault') != __version__:
                     self.status.set('New version avaliable at pypi', 'green')
@@ -194,10 +202,10 @@ class GUI():
         initialfile = time.strftime('%Y%m%d-%H%M%S')
         if self.file_config.get('use_steganography'):
             filetypes = (('Image file', '*.png'), ('All files', '*.*'))
-            defaultextension='.png'
+            defaultextension = '.png'
         else:
             filetypes = (('Text file', '*.txt'), ('All files', '*.*'))
-            defaultextension='.txt'
+            defaultextension = '.txt'
         kwargs = {'master': self.master,
                   'title': 'Filename',
                   'defaultextension': defaultextension,
@@ -208,7 +216,8 @@ class GUI():
             path = tkinter.filedialog.asksaveasfilename(**kwargs)
         elif 'load' in call_type:
             path = tkinter.filedialog.askopenfilename(**kwargs)
-        if not path: return
+        if not path:
+            return
         try:
             with open(path, mode) as fh:
                 getattr(self, call_type)(fh)
@@ -284,7 +293,7 @@ class GUI():
                 self.steganography_save(fh)
             else:
                 self.vault.save_file(fh)
-            
+
         self.status.set('Saving passwords')
         if not (fh or self.verify()):
             return
@@ -303,14 +312,14 @@ class GUI():
             self.make_dirs()
             with open(location, 'wb') as fh:
                 save_passwords(fh)
-                
+
         elif self.file_location.get() == 'Remote':
             self.status.set(f'Saving passwords remotly at: {location}')
             with ssh.RemoteFile(self.ssh_config,
                                 location,
                                 constants.data_dir(), 'w') as fh:
                 save_passwords(fh)
-        
+
         self.vault.unlock(self._password)
         self.passbox.dirty.set(False)
         self.status.set('Passwords saved')
@@ -321,7 +330,7 @@ class GUI():
         except VaultError as err:
             self.status.set(err, color='red')
 
-    def load_clear(self):
+    def load_clear(self, fh):
         if self.passbox.dirty.get():
             self.status.set('Save current passwords first', color='red')
             return
@@ -356,8 +365,8 @@ class GUI():
     def setup_files(self):
         """Setup files throught dialog."""
         result = widgets.SetupFiles(self.master,
-                                  'File Config',
-                                  self.file_config).result
+                                    'File Config',
+                                    self.file_config).result
         if result:
             self.file_config = result
 
@@ -389,11 +398,11 @@ class GUI():
         self.password.set('')
         self.passbox.clear()
         self.status.set('Vault locked')
-        
+
     def toggle_lock(self):
         """Toggle lock and unlock of vault."""
         if self.password.get() and self.vault and self.vault.locked:
-            self.update_password_box()          
+            self.update_password_box()
         elif self.vault and self._password:
             self.lock()
 
@@ -431,7 +440,7 @@ class PasswordBox(tkinter.ttk.Treeview):
 
     def grid(self, *args, **kwargs):
         self.f.grid(*args, **kwargs)
-        
+
     def clear(self):
         """Remove all unlocked passwords from the list."""
         children = self.get_children()
@@ -442,7 +451,8 @@ class PasswordBox(tkinter.ttk.Treeview):
     def add(self, password=None):
         """Add new password to password list."""
         password = password or widgets.AddPassword(self.master).result
-        if not password: return
+        if not password:
+            return
         for index, iid in enumerate(self.get_children()):
             if self.set(iid, 'System').lower() > password[0].lower():
                 self.insert('', index, values=password)
@@ -453,21 +463,23 @@ class PasswordBox(tkinter.ttk.Treeview):
 
     def edit(self, iid):
         """Edit password."""
-        if not iid: return
+        if not iid:
+            return
         values = self.item(iid, 'values')
         result = widgets.AddPassword(self.master, 'Password', values).result
         # We got a result and atleast one field has changed
         if result and [x for x in zip(values, result) if x[0] != x[1]]:
             self.delete(iid)
             self.add(result)
-        
+
     def on_click(self, event):
         """Open Edit dialog on click."""
         region = self.identify("region", event.x, event.y)
         if region == 'heading':
             return
         self.edit(self.identify_row(event.y))
- 
+
+
 tk = tkinter.Tk()
 GUI(tk)
 tk.mainloop()

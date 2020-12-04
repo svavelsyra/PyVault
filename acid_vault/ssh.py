@@ -18,13 +18,17 @@ import os
 import paramiko
 import tkinter.messagebox
 
+
 class RemoteFile():
     """
     Class to handle remote files through ssh.
     """
     def __init__(self, ssh_params, filepath, data_dir, *args, **kwargs):
         host, port, username, password = [ssh_params[x] for x in
-                                          ('host', 'port', 'username', 'password')]
+                                          ('host',
+                                           'port',
+                                           'username',
+                                           'password')]
         self.ssh = paramiko.SSHClient()
         try:
             self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
@@ -37,7 +41,7 @@ class RemoteFile():
         self.sftp = None
         self.stat = None
         self.fh = self._open(*args, **kwargs)
-             
+
     def __enter__(self):
         return self.fh
 
@@ -56,8 +60,8 @@ class RemoteFile():
                 self.ssh.close()
                 return
             if tkinter.messagebox.askokcancel(
-                "Unknown host", "Unknown host!\n"
-                "Do you want to continue connecting?"):
+                    "Unknown host", "Unknown host!\n"
+                    "Do you want to continue connecting?"):
                 self._connect(host, port, username, password, True)
             else:
                 self.ssh.close()
@@ -78,22 +82,22 @@ class RemoteFile():
         for con in ('fh', 'sftp', 'ssh'):
             try:
                 getattr(self, con).close()
-            except:
+            except Exception:
                 pass
-                
+
     def _open(self, *args, **kwargs):
         """Open remote path."""
         path = kwargs.pop('path', self.filepath)
         transport = self.ssh.get_transport()
         try:
             transport.send_ignore()
-        except:
-            return            
+        except Exception:
+            return
         self.sftp = self.ssh.open_sftp()
         self._makedirs(os.path.dirname(path))
         try:
             self.stat = self.sftp.stat(path)
             return self.sftp.open(path, *args, **kwargs)
         except FileNotFoundError:
-            tkinter.messagebox.showerror('File not found!',
-                                         f'Unable to find the file {self.filepath}')
+            tkinter.messagebox.showerror(
+                'File not found!', f'Unable to find the file {self.filepath}')

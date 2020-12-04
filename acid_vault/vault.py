@@ -35,6 +35,7 @@ VALID_PASSWORD_TYPES = ('alpha',
                         'mobilealphanumspecial',
                         'numerical')
 
+
 class Vault():
     def __init__(self, data_file=None):
         self._locked = False
@@ -48,14 +49,14 @@ class Vault():
     @property
     def locked(self):
         return self._locked
-    
+
     def load_data(self, data):
         self.data = pickle.loads(data)
         self._locked = True
 
     def save_data(self):
         return pickle.dumps(self.data)
-    
+
     def load_file(self, fh):
         self.data = pickle.load(fh)
         self._locked = True
@@ -75,9 +76,10 @@ class Vault():
             raise VaultError('Vault is locked, please unlock first')
         for obj in self.data['vault']:
             print(repr(obj), file=fh)
-        
+
     def lock(self, password):
-        if self._locked: return
+        if self._locked:
+            return
         data = pickle.dumps(self.data['vault'])
         key = self.create_key(password,
                               self.data['salt'],
@@ -86,7 +88,8 @@ class Vault():
         self._locked = True
 
     def unlock(self, password):
-        if not self._locked: return
+        if not self._locked:
+            return
         key = self.create_key(password,
                               self.data['salt'],
                               self.data.get('iterations', 1000000))
@@ -96,7 +99,7 @@ class Vault():
             self._locked = False
         except InvalidToken:
             pass
-        
+
     def create_key(self, password, salt, iterations=1000000):
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -113,37 +116,40 @@ class Vault():
 
     def set_objects(self, objs):
         self.data['vault'] = objs
-    
+
     def add(self, obj):
         self.data['vault'].append(obj)
 
     def remove_password(self, obj):
         self.data['vault'].remove(obj)
-        
+
 
 class VaultError(Exception):
     pass
-        
+
+
 def generate_password(password_type='alpha', n=10):
     alphabets = {'alpha': (string.ascii_letters, 'isupper', 'islower'),
-                 'alphanum': (string.ascii_letters + string.digits, 'isupper', 'islower','isdigit'),
-                 'alphanumspecial': (string.ascii_letters + string.digits + '!"#¤%&/()=?', 'isupper', 'islower','isdigit'),
+                 'alphanum': (string.ascii_letters + string.digits, 'isupper', 'islower', 'isdigit'),  # noqa: E501 Line to long
+                 'alphanumspecial': (string.ascii_letters + string.digits + '!"#¤%&/()=?', 'isupper', 'islower', 'isdigit'),  # noqa: E501 Line to long
                  'mobilealpha': (string.ascii_lowercase, 'islower'),
                  'mobilealphanum': (string.ascii_lowercase, 'islower'),
                  'mobilealphanumspecial': (string.ascii_lowercase, 'islower'),
                  'numerical': (string.digits, 'isdigit')}
-    if not password_type in alphabets:
-        raise KeyError(f'Password type has to be one of the following: {", ".join(alphabets.keys())} it is "{password_type}".')
+    if password_type not in alphabets:
+        raise KeyError('Password type has to be one of the following:'
+                       f' {", ".join(alphabets.keys())} it is'
+                       f' "{password_type}".')
     while True:
         alphabet = alphabets[password_type][0]
         password = random.choices(alphabet, k=n)
         if password_type.startswith('mobile'):
             password[0] = password[0].upper()
-        if 'mobilealphanum' in password_type :
+        if 'mobilealphanum' in password_type:
             password[-2] = random.choice(string.digits)
         if password_type == 'mobilealphanumspecial':
             password[-1] = random.choice('!"#¤%&/()=?')
-            
+
         for test in alphabets[password_type][1:]:
             if not [c for c in password if getattr(c, test)()]:
                 break

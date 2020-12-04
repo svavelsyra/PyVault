@@ -5,9 +5,10 @@ def legacy_load(obj):
         values = obj.get('attributes', {}).get('ssh_config')
         if values:
             obj['attributes']['ssh_config'] = {}
-            for index, key  in enumerate(('host', 'port', 'username', 'password')):
+            for index, key in enumerate(
+                    ('host', 'port', 'username', 'password')):
                 try:
                     obj['attributes']['ssh_config'][key] = values[index]
-                except IndexError as err:
+                except IndexError:
                     obj['attributes']['ssh_config'][key] = ''
     return obj
