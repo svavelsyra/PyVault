@@ -18,31 +18,42 @@
 from PIL import Image
 
 
+class SteganographyError(Exception):
+    pass
+
+
 def write(fh, original, data):
     with Image.open(original) as image:
         mask = [int(y) for y in ''.join([str(format(x, 'b')).zfill(8) for
                                          x in data])]
-        new_band = []
-        for index, x in enumerate(image.getdata(0)):
-            new_band.append((x + (mask.pop(0) if mask else 2) % 255))
-
-        r, g, b = image.split()
-        r.putdata(new_band)
-        i = Image.merge(image.mode, (r, g, b))
+        bands = image.split()
+        for band_index in (0, 1, 2):
+            new_band = []
+            for index, x in enumerate(image.getdata(band_index)):
+                new_band.append((x + (mask.pop(0) if mask else 2) % 255))
+            bands[band_index].putdata(new_band)
+            if not mask:
+                break
+        else:
+            raise SteganographyError('Ran out of image space')
+        i = Image.merge(image.mode, bands)
         i.save(fh, 'png')
 
 
 def read(fh, original):
-    with Image.open(original) as orig, Image.open(fh) as mask:
-        orig = list(orig.getdata(0))
-        mask = list(mask.getdata(0))
-        result = []
-        for x, y in zip(mask, orig):
-            value = x - y
-            if value in (2, -254):
-                break
-            if value < 0:
-                value = 1
-            result.append(str(value))
+    def convert_result(result):
         return int(''.join(result), 2).to_bytes(len(result) // 8,
                                                 byteorder='big')
+    with Image.open(original) as orig, Image.open(fh) as mask:
+        result = []
+        for band_index in (0, 1, 2):
+            orig_data = list(orig.getdata(band_index))
+            mask_data = list(mask.getdata(band_index))
+            for x, y in zip(mask_data, orig_data):
+                value = x - y
+                if value in (2, -254):
+                    return convert_result(result)
+                if value < 0:
+                    value = 1
+                result.append(str(value))
+        return convert_result(result)

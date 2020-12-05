@@ -30,6 +30,7 @@ try:
     import legacy_load
     import ssh
     import steganography
+    from steganography import SteganographyError
     from vault import Vault, VaultError
     import widgets
 except ImportError as err:
@@ -236,7 +237,11 @@ class GUI():
         """Save data hidden in a file."""
         self.status.set('Hiding data')
         data = self.vault.save_data()
-        steganography.write(fh, self.file_config['original_file'], data)
+        try:
+            steganography.write(fh, self.file_config['original_file'], data)
+        except SteganographyError as err:
+            self.status.set(str(err))
+            return
         self.status.set('Data hidden')
 
     def load_encrypted(self, fh=False):
