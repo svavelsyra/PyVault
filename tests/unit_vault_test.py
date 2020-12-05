@@ -15,7 +15,7 @@ def test_already_unlocked(vault_data_unlocked):
     v.data = vault_data_unlocked
     v.unlock('testpass')
     assert 'test' in v.data['vault']
-    
+
 def test_lock(vault_data_unlocked):
     v = vault.Vault()
     v.data = vault_data_unlocked

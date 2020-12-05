@@ -41,16 +41,19 @@ def write(fh, original, data):
 
 
 def read(fh, original):
-    with Image.open(original) as orig, Image.open(fh) as mask:
-        orig = list(orig.getdata())
-        mask = list(mask.getdata())
-        result = []
-        for x, y in zip(mask, orig):
-            value = x - y
-            if value in (2, -254):
-                break
-            if value < 0:
-                value = 1
-            result.append(str(value))
+    def convert_result(result):
         return int(''.join(result), 2).to_bytes(len(result) // 8,
                                                 byteorder='big')
+    with Image.open(original) as orig, Image.open(fh) as mask:
+        result = []
+        for band_index in (0, 1, 2):
+            orig_data = list(orig.getdata(band_index))
+            mask_data = list(mask.getdata(band_index))
+            for x, y in zip(mask_data, orig_data):
+                value = x - y
+                if value in (2, -254):
+                    return convert_result(result)
+                if value < 0:
+                    value = 1
+                result.append(str(value))
+        return convert_result(result)
