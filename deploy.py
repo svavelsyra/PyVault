@@ -18,5 +18,7 @@ p = subprocess.Popen(['pyinstaller',
                       '-n',
                       f'PyVault-Win-Install-v{__version__}',
                       '--add-data',
-                      'install data;install data'])
+                      'install data;install data',
+                      '--distpath',
+                      'win_installers'])
 p.wait()
