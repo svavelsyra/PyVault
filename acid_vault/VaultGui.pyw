@@ -64,7 +64,7 @@ class GUI():
         self.password = tkinter.StringVar()
         self._password = None
         password = widgets.LabelEntry(top,
-                                      label='Password',
+                                      label='Master Password',
                                       show='*',
                                       textvariable=self.password)
 
@@ -257,15 +257,15 @@ class GUI():
             return
         location = fh.name if fh else self.file_config['file_location']
         if fh:
-            self.status.set(f'Loading passwords from: {location}')
+            self.status.set(f'Loading passwords from: {location} this may take a while...')
             load_passwords(fh)
         elif self.file_location.get() == 'Local':
-            self.status.set(f'Getting local passwords at: {location}')
+            self.status.set(f'Getting local passwords at: {location} this may take a while...')
             self.make_dirs()
             with open(location, 'rb') as fh:
                 load_passwords(fh)
         elif self.file_location.get() == 'Remote':
-            self.status.set(f'Getting remote passwords at: {location}')
+            self.status.set(f'Getting remote passwords at: {location} this may take a while...')
             try:
                 with ssh.RemoteFile(self.ssh_config,
                                     location,
@@ -302,8 +302,9 @@ class GUI():
         self.status.set('Saving passwords')
         if not (fh or self.verify()):
             return
+        self._password = self.password.get()
         if not self.vault:
-            self.vault = Vault(self.password.get())
+            self.vault = Vault()
         objects = [self.passbox.item(x, 'values') for x in
                    self.passbox.get_children()]
         self.vault.set_objects(objects)
@@ -311,15 +312,15 @@ class GUI():
         location = fh.name if fh else self.file_config['file_location']
         if fh:
             save_passwords(fh)
-            self.status.set(f'Saving passwords at: {location}')
+            self.status.set(f'Saving passwords at: {location} this may take a while...')
         elif self.file_location.get() == 'Local':
-            self.status.set(f'Saving passwords localy at: {location}')
+            self.status.set(f'Saving passwords localy at: {location} this may take a while...')
             self.make_dirs()
             with open(location, 'wb') as fh:
                 save_passwords(fh)
 
         elif self.file_location.get() == 'Remote':
-            self.status.set(f'Saving passwords remotly at: {location}')
+            self.status.set(f'Saving passwords remotly at: {location} this may take a while...')
             with ssh.RemoteFile(self.ssh_config,
                                 location,
                                 constants.data_dir(), 'w') as fh:
