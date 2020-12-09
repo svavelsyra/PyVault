@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License    #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
+'''Varius GUI widgets'''
 from distutils.version import LooseVersion
 import json
 import os
@@ -115,6 +116,7 @@ class Dialog(tkinter.Toplevel):
 
 
 class AddPassword(Dialog):
+    '''Add/Edit password dialog.'''
     def body(self, master, initial_data):
         self.timer = Timer(master, self.close, 5000*60)
         master.bind_all('<Enter>', self.timer.reset)
@@ -166,6 +168,7 @@ class AddPassword(Dialog):
 
 
 class SetupSSH(Dialog):
+    '''Setup SSH related settings.'''
     def body(self, master, initial_data):
         """Body of SSH settings dialog."""
         self.clear_on_exit = tkinter.BooleanVar()
@@ -198,6 +201,7 @@ class SetupSSH(Dialog):
 
 
 class SetupFiles(Dialog):
+    '''File related settings, paths and steganography.'''
     def body(self, master, initial_data):
         # Checkboxes.
         for key in ('use_steganography', 'clear_on_exit'):
@@ -235,6 +239,7 @@ class SetupFiles(Dialog):
 
 
 class About(Dialog):
+    '''About information and update program button.'''
     def body(self, master, _):
         for name, var in (('', '__summary__'),
                           ('Version: ', '__version__'),
@@ -256,6 +261,7 @@ class About(Dialog):
             button.pack()
 
     def update(self, version):
+        '''Update to newest version of program'''
         p = subprocess.Popen(
             [sys.executable, '-m', 'pip', 'install', f'acid_vault=={version}'],
             stdout=subprocess.PIPE)
@@ -293,6 +299,7 @@ class Box(tkinter.Frame):
 
 
 class StatusBar(tkinter.Label):
+    '''Status bar widget.'''
     def __init__(self, master, *args, **kwargs):
         self.default_color = master.cget('bg')
         self.master = master
@@ -307,6 +314,7 @@ class StatusBar(tkinter.Label):
 
 
 class LabelEntry(tkinter.Frame):
+    '''A labled entry frame.'''
     def __init__(self, master, *args, **kwargs):
         self.master = master
         label = kwargs.pop('label', '')
@@ -351,6 +359,7 @@ class Timer():
 
 
 def check_version(name):
+    '''Checks current version for package on pypi'''
     pypi_url = f'https://pypi.org/pypi/{name}/json'
     response = urllib.request.urlopen(pypi_url, timeout=5).read().decode()
     latest_version = max(LooseVersion(s) for s in

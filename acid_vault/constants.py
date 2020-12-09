@@ -14,11 +14,16 @@
 # You should have received a copy of the GNU Affero General Public License    #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
+'''
+Constants.
+'''
+
 import os
 import platform
 
 
 def data_dir():
+    '''Returns path to programs data dir.'''
     system = platform.system()
     if system == 'Windows':
         path = os.path.join('appdata', 'local', 'vault')

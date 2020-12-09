@@ -14,6 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License    #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
+
+'''
+Encrypts and decrypts data.
+'''
+
 import ast
 import base64
 import os
@@ -36,7 +41,13 @@ VALID_PASSWORD_TYPES = ('alpha',
                         'numerical')
 
 
+class VaultError(Exception):
+    '''Vault releated errors.'''
+    pass
+
+
 class Vault():
+    '''Class to hold salt, iterations and the data.'''
     def __init__(self, data_file=None):
         self._locked = False
         if data_file:
@@ -48,23 +59,29 @@ class Vault():
 
     @property
     def locked(self):
+        '''Locked status of the vault'''
         return self._locked
 
     def load_data(self, data):
+        '''Load data from a pickle.'''
         self.data = pickle.loads(data)
         self._locked = True
 
     def save_data(self):
+        '''Save data in a pickle and return it.'''
         return pickle.dumps(self.data)
 
     def load_file(self, fh):
+        '''Load pickled data from a open file.'''
         self.data = pickle.load(fh)
         self._locked = True
 
     def save_file(self, fh):
+        '''Save data as a pickle in open file.'''
         pickle.dump(self.data, fh)
 
     def load_clear(self, fh):
+        '''Load data from open file containing clear text data.'''
         if self.locked:
             raise VaultError('Vault is locked, unlock first!')
         self._locked = False
@@ -72,12 +89,14 @@ class Vault():
             self.add(ast.literal_eval(row.strip()))
 
     def save_clear(self, fh):
+        '''Save data in open file as clear text.'''
         if self.locked:
             raise VaultError('Vault is locked, please unlock first')
         for obj in self.data['vault']:
             print(repr(obj), file=fh)
 
     def lock(self, password):
+        '''Lock vault with password.'''
         if self._locked:
             return
         data = pickle.dumps(self.data['vault'])
@@ -88,6 +107,7 @@ class Vault():
         self._locked = True
 
     def unlock(self, password):
+        '''Unlock vault with password.'''
         if not self._locked:
             return
         key = self.create_key(password,
@@ -101,6 +121,7 @@ class Vault():
             pass
 
     def create_key(self, password, salt, iterations=1000000):
+        '''Create a key to be used.'''
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -112,23 +133,24 @@ class Vault():
             kdf.derive(bytearray(password, 'utf-8')))
 
     def get_objects(self):
+        '''Get objects in their current state in vault.'''
         return self.data['vault']
 
     def set_objects(self, objs):
+        '''Set vault content to input.'''
         self.data['vault'] = objs
 
     def add(self, obj):
+        '''Add to vault content.'''
         self.data['vault'].append(obj)
 
     def remove_password(self, obj):
+        '''Remove obj from vault if it exists.'''
         self.data['vault'].remove(obj)
 
 
-class VaultError(Exception):
-    pass
-
-
 def generate_password(password_type='alpha', n=10):
+    '''Password generator to sugest randomized passwords.'''
     alphabets = {'alpha': (string.ascii_letters, 'isupper', 'islower'),
                  'alphanum': (string.ascii_letters + string.digits, 'isupper', 'islower', 'isdigit'),  # noqa: E501 Line to long
                  'alphanumspecial': (string.ascii_letters + string.digits + '!"#¤%&/()=?', 'isupper', 'islower', 'isdigit'),  # noqa: E501 Line to long

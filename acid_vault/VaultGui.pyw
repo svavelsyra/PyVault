@@ -14,7 +14,9 @@
 # You should have received a copy of the GNU Affero General Public License    #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
-
+'''
+Graphical User Interface towards password vault.
+'''
 from version import __version__
 try:
     import datetime
@@ -193,12 +195,14 @@ class GUI():
             print(err)
 
     def on_return_key(self, *event):
+        '''Called on return stroke bound to master password box.'''
         if self.vault and self.vault.locked:
             self.update_password_box()
         else:
             self.load_encrypted()
 
     def ask_for_file(self, call_type, mode):
+        '''Ask user for a file, starting at users home dir.'''
         initialdir = os.path.expanduser('~')
         initialfile = time.strftime('%Y%m%d-%H%M%S')
         if self.file_config.get('use_steganography'):
@@ -331,12 +335,14 @@ class GUI():
         self.status.set('Passwords saved')
 
     def save_clear(self, fh):
+        '''Make a dump of all password as a clear text file.'''
         try:
             self.vault.save_clear(fh)
         except VaultError as err:
             self.status.set(err, color='red')
 
     def load_clear(self, fh):
+        '''Load clear text password file.'''
         if self.passbox.dirty.get():
             self.status.set('Save current passwords first', color='red')
             return
@@ -413,6 +419,7 @@ class GUI():
             self.lock()
 
     def dirty(self, *args, **kwargs):
+        '''Sets dirty flag (*) in tile as well as returing current status.'''
         dirty = ' *' if self.passbox.dirty.get() else ''
         self.master.title(self.title + dirty)
         return bool(dirty)
@@ -485,7 +492,7 @@ class PasswordBox(tkinter.ttk.Treeview):
             return
         self.edit(self.identify_row(event.y))
 
-
-tk = tkinter.Tk()
-GUI(tk)
-tk.mainloop()
+if __name__ == '__main__':
+    tk = tkinter.Tk()
+    GUI(tk)
+    tk.mainloop()

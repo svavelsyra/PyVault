@@ -14,6 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License    #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
+
+'''
+Handle files on Remote server through ssh.
+Wrapper around Paramiko sftp server.
+'''
 import os
 import paramiko
 import tkinter.messagebox
@@ -22,6 +27,7 @@ import tkinter.messagebox
 class RemoteFile():
     """
     Class to handle remote files through ssh.
+    Implements context manager.
     """
     def __init__(self, ssh_params, filepath, data_dir, *args, **kwargs):
         host, port, username, password = [ssh_params[x] for x in
@@ -76,6 +82,7 @@ class RemoteFile():
                 self.sftp.mkdir(current_path)
 
     def close(self):
+        '''Close all open handles in the correct order.'''
         if self.stat:
             self.sftp.utime(self.filepath, (self.stat.st_atime,
                                             self.stat.st_mtime))

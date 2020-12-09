@@ -15,14 +15,24 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
 
+'''
+Steganography
+Hides data within an image so that its not obvious that the data is
+there.
+'''
+
 from PIL import Image
 
 
 class SteganographyError(Exception):
+    '''StganographyError for various error situations.'''
     pass
 
-
 def write(fh, original, data):
+    '''
+    Combine data with data from original (image (tested on jpg))
+    and write it as a .png image in opened file.
+    '''
     with Image.open(original) as image:
         mask = [int(y) for y in ''.join([str(format(x, 'b')).zfill(8) for
                                          x in data])]
@@ -41,6 +51,9 @@ def write(fh, original, data):
 
 
 def read(fh, original):
+    '''
+    Read data from opened file and compare it to orignal to get stored data.
+    '''
     def convert_result(result):
         return int(''.join(result), 2).to_bytes(len(result) // 8,
                                                 byteorder='big')

@@ -1,4 +1,8 @@
+'''Handling of old formats.'''
+
+
 def legacy_load(obj):
+    '''Handle legacy state formats and update to new format.'''
     version = obj.get('version')
     if not version:
         obj['version'] = '1.0.0'
