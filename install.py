@@ -20,6 +20,9 @@ class Installer():
             output = [x.strip() for x in output if
                       x and 'WindowsApps' not in x]
             if not output:
+                output = self.check_common_places()
+
+            if not output:
                 result = tkinter.messagebox.askyesnocancel(
                     'Install Python?',
                     'Python not found on path, install it?\n '
@@ -36,34 +39,47 @@ class Installer():
                                                        'install data',
                                                        'python-3.9.0-amd64.exe')])
                     p.wait()
-                    tkinter.messagebox.showwarning(
-                        'Please restart',
-                        'Install will now close, please restart '
-                        'installation manually')
-                    master.destroy()
-                    return
+
+                    output = self.check_common_places()
+                    if not output:
+                        tkinter.messagebox.showwarning(
+                            'Please restart',
+                            'Install will now close, please restart '
+                            'installation manually')
+                        master.destroy()
+                        return
 
                 elif result is None:
                     master.destroy()
                     return
                 else:
-                    self.py_path = tkinter.filedialog.askdirectory()
-                    if not self.py_path:
+                    output = tkinter.filedialog.askdirectory()
+                    if not output:
                         master.destroy()
                         return
+                    output = [output]
                     break
+
+            paths = [os.path.dirname(x) for x in output]
+            if len(paths) == 1:
+                self.py_path = paths[0]
             else:
-                paths = [os.path.dirname(x) for x in output]
                 dialog = SelectDistDialog(master, 'Select target', paths)
                 if not dialog.result:
                     return
                 self.py_path = dialog.result
-                break
+            break
 
         python_exec = os.path.join(self.py_path, 'python.exe')
         p = subprocess.Popen(
             [python_exec, '-m', 'pip', 'install', 'acid_vault'])
         p.wait()
+        if p.returncode:
+            tkinter.messagebox.showerror(
+                'Failed to install',
+                'Failed to install vault is internet availiable?')
+            master.destroy()
+            return
 
         self.create_shortcut()
         master.destroy()
@@ -93,6 +109,17 @@ class Installer():
         p = subprocess.Popen([bat_file])
         p.wait()
         os.remove(bat_file)
+
+    def check_common_places(self):
+        path_guess = os.path.expanduser(
+            os.path.join('~', 'AppData', 'Local', 'Programs', 'Python'))
+        try:
+            canidates = os.listdir(path_guess)
+            return [os.path.join(path_guess, x, 'python.exe') for
+                    x in canidates if os.path.exists(
+                        os.path.join(path_guess, x, 'python.exe'))]
+        except FileNotFoundError:
+            return []
 
 
 class SelectDistDialog(tkinter.Toplevel):
