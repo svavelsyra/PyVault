@@ -340,22 +340,33 @@ class LabelEntry(tkinter.Frame):
 
 class Timer():
     """Timer class to triger call back after given time."""
-    def __init__(self, master, callback, after):
+    def __init__(self, master, callback, after, reset_after_trigger=False,
+                 *args, **kwargs):
         self.master = master
         self.callback = callback
         self.after = after
-        self.timer = master.after(self.after, self.callback)
+        self.args = args
+        self.kwargs = kwargs
+        self.reset_after_trigger = reset_after_trigger
+        self.timer = master.after(self.after, self._trigger)
+
+    def _trigger(self):
+        self.callback(*self.args, **self.kwargs)
+        if self.reset_after_trigger:
+            self.timer = self.master.after(self.after, self._trigger)
 
     def reset(self, *args, **kwargs):
         """Reset timer"""
         self.timer and self.master.after_cancel(self.timer)
-        self.timer = self.master.after(self.after, self.callback)
+        self.timer = self.master.after(self.after, self.trigger)
 
     def stop(self):
+        """Stop timer."""
         self.timer and self.master.after_cancel(self.timer)
 
     def start(self):
-        self.timer = self.master.after(self.after, self.callback)
+        """Start timer, only used after it has been stoped."""
+        self.timer = self.master.after(self.after, self.trigger)
 
 
 def check_version(name):

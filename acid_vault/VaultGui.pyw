@@ -73,7 +73,7 @@ class GUI():
 
         password.bind('<Return>', self.on_return_key)
         # Activity sensor.
-        timer = widgets.Timer(self.master, self.lock, 5000*60)
+        timer = widgets.Timer(self.master, self.lock, 5000*60, True)
         master.bind_all('<Enter>', timer.reset)
 
         # Buttons.
@@ -262,15 +262,18 @@ class GUI():
             return
         location = fh.name if fh else self.file_config['file_location']
         if fh:
-            self.status.set(f'Loading passwords from: {location} this may take a while...')
+            self.status.set(f'Loading passwords from: {location} '
+                            'this may take a while...')
             load_passwords(fh)
         elif self.file_location.get() == 'Local':
-            self.status.set(f'Getting local passwords at: {location} this may take a while...')
+            self.status.set(f'Getting local passwords at: {location} '
+                            'this may take a while...')
             self.make_dirs()
             with open(location, 'rb') as fh:
                 load_passwords(fh)
         elif self.file_location.get() == 'Remote':
-            self.status.set(f'Getting remote passwords at: {location} this may take a while...')
+            self.status.set(f'Getting remote passwords at: {location} '
+                            'this may take a while...')
             try:
                 with ssh.RemoteFile(self.ssh_config,
                                     location,
@@ -317,15 +320,18 @@ class GUI():
         location = fh.name if fh else self.file_config['file_location']
         if fh:
             save_passwords(fh)
-            self.status.set(f'Saving passwords at: {location} this may take a while...')
+            self.status.set(f'Saving passwords at: {location} '
+                            'this may take a while...')
         elif self.file_location.get() == 'Local':
-            self.status.set(f'Saving passwords localy at: {location} this may take a while...')
+            self.status.set(f'Saving passwords localy at: {location} '
+                            'this may take a while...')
             self.make_dirs()
             with open(location, 'wb') as fh:
                 save_passwords(fh)
 
         elif self.file_location.get() == 'Remote':
-            self.status.set(f'Saving passwords remotly at: {location} this may take a while...')
+            self.status.set(f'Saving passwords remotly at: {location} '
+                            'this may take a while...')
             with ssh.RemoteFile(self.ssh_config,
                                 location,
                                 constants.data_dir(), 'w') as fh:
@@ -492,6 +498,7 @@ class PasswordBox(tkinter.ttk.Treeview):
         if region == 'heading':
             return
         self.edit(self.identify_row(event.y))
+
 
 if __name__ == '__main__':
     tk = tkinter.Tk()
