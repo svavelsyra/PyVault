@@ -1,26 +1,26 @@
-###############################################################################
-# Acid Vault                                                                  #
-#                                                                             #
-# This program is free software: you can redistribute it and/or modify        #
-# it under the terms of the GNU Affero General Public License as published by #
-# the Free Software Foundation, either version 3 of the License, or           #
-# (at your option) any later version.                                         #
-#                                                                             #
-# This program is distributed in the hope that it will be useful,             #
-# but WITHOUT ANY WARRANTY; without even the implied warranty of              #
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               #
-# GNU Affero General Public License for more details.                         #
-#                                                                             #
-# You should have received a copy of the GNU Affero General Public License    #
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
-###############################################################################
-
+########################################################################
+# Acid Vault                                                           #
+#                                                                      #
+# This program is free software: you can redistribute it and/or modify #
+# it under the terms of the GNU Affero General Public License as       #
+# published by the Free Software Foundation, either version 3 of the   #
+# License, or (at your option) any later version.                      #
+#                                                                      #
+# This program is distributed in the hope that it will be useful,      #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of       #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the        #
+# GNU Affero General Public License for more details.                  #
+#                                                                      #
+# You should have received a copy of the GNU Affero General Public     #
+# License                                                              #
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.#
+########################################################################
 '''
 Encrypts and decrypts data.
 '''
-
 import ast
 import base64
+import datetime
 import os
 import pickle
 import random
@@ -31,6 +31,9 @@ from cryptography.fernet import InvalidToken
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+import ssh
+import steganography
 
 VALID_PASSWORD_TYPES = ('alpha',
                         'alphanum',
@@ -48,37 +51,53 @@ class VaultError(Exception):
 
 class Vault():
     '''Class to hold salt, iterations and the data.'''
-    def __init__(self, data_file=None):
+    def __init__(self, data_path=None, ssh_params=None, path_to_original=None):
         self._locked = False
-        if data_file:
-            self.load_file(data_file)
+        if data_path:
+            self.load(data_path, ssh_params, path_to_original)
         else:
             self.data = {'salt': os.urandom(16),
                          'iterations': 1000000,
-                         'vault': []}
+                         'vault': [],
+                         'timestamp': datetime.datetime.utcnow()}
 
     @property
     def locked(self):
         '''Locked status of the vault'''
         return self._locked
 
-    def load_data(self, data):
-        '''Load data from a pickle.'''
-        self.data = pickle.loads(data)
+    @property
+    def timestamp(self):
+        return self.data.get('timestamp')
+
+    def load(self, file_path, ssh_params=None, path_to_original=None):
+        def read(fh):
+            if path_to_original:
+                self.data = pickle.loads(
+                    steganography.read(fh, path_to_original))
+            else:
+                self.data = pickle.load(fh)
+        if ssh_params:
+            with ssh.RemoteFile(ssh_params, file_path) as fh:
+                read(fh)
+        else:
+            with open(file_path, 'rb') as fh:
+                read(fh)
         self._locked = True
 
-    def save_data(self):
-        '''Save data in a pickle and return it.'''
-        return pickle.dumps(self.data)
-
-    def load_file(self, fh):
-        '''Load pickled data from a open file.'''
-        self.data = pickle.load(fh)
-        self._locked = True
-
-    def save_file(self, fh):
-        '''Save data as a pickle in open file.'''
-        pickle.dump(self.data, fh)
+    def save(self, file_path, ssh_params=None, path_to_original=None):
+        def write(fh):
+            if path_to_original:
+                steganography.write(
+                    fh, path_to_original, pickle.dumps(self.data))
+            else:
+                fh.write(pickle.dumps(self.data))
+        if ssh_params:
+            with ssh.RemoteFile(ssh_params, file_path, 'wb') as fh:
+                write(fh)
+        else:
+            with open(file_path, 'wb') as fh:
+                write(fh)
 
     def load_clear(self, fh):
         '''Load data from open file containing clear text data.'''

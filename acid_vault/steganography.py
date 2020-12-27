@@ -28,6 +28,7 @@ class SteganographyError(Exception):
     '''StganographyError for various error situations.'''
     pass
 
+
 def write(fh, original, data):
     '''
     Combine data with data from original (image (tested on jpg))

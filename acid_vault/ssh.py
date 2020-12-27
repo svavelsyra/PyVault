@@ -23,19 +23,22 @@ import os
 import paramiko
 import tkinter.messagebox
 
+import constants
+
 
 class RemoteFile():
     """
     Class to handle remote files through ssh.
     Implements context manager.
     """
-    def __init__(self, ssh_params, filepath, data_dir, *args, **kwargs):
-        host, port, username, password = [ssh_params[x] for x in
+    def __init__(self, ssh_params, filepath, *args, **kwargs):
+        host, port, username, password = [ssh_params.get(x) for x in
                                           ('host',
                                            'port',
                                            'username',
                                            'password')]
         self.ssh = paramiko.SSHClient()
+        data_dir = constants.data_dir()
         try:
             self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
         except FileNotFoundError:
@@ -104,7 +107,6 @@ class RemoteFile():
         self._makedirs(os.path.dirname(path))
         try:
             self.stat = self.sftp.stat(path)
-            return self.sftp.open(path, *args, **kwargs)
         except FileNotFoundError:
-            tkinter.messagebox.showerror(
-                'File not found!', f'Unable to find the file {self.filepath}')
+            pass
+        return self.sftp.open(path, *args, **kwargs)
