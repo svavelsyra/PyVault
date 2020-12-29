@@ -51,9 +51,10 @@ def write(fh, original, data):
         i.save(fh, 'png')
 
 
-def read(fh, original):
+def read(fh, original, size=-1):
     '''
     Read data from opened file and compare it to orignal to get stored data.
+    Optional size argument in Bytes, negative value to disable.
     '''
     def convert_result(result):
         return int(''.join(result), 2).to_bytes(len(result) // 8,
@@ -65,7 +66,7 @@ def read(fh, original):
             mask_data = list(mask.getdata(band_index))
             for x, y in zip(mask_data, orig_data):
                 value = x - y
-                if value in (2, -254):
+                if value in (2, -254) or len(result)//8 == size:
                     return convert_result(result)
                 if value < 0:
                     value = 1

@@ -70,34 +70,45 @@ class Vault():
     def timestamp(self):
         return self.data.get('timestamp')
 
+    def get_remote_timestamp(self, file_path, ssh_params, path_to_original):
+        def get_ts(fh, path_to_original):
+            if path_to_original:
+                data = steganography.read(fh, path_to_original, size=26)
+            else:
+                data = fh.read(26)
+            try:
+                return datetime.datetime.fromisoformat(str(data, 'utf-8'))
+            except ValueError:
+                return None
+        return self._open(
+            file_path, ssh_params, path_to_original, 'rb', get_ts)
+
+    def _open(self, file_path, ssh_params, path_to_orginal, mode, call):
+        if ssh_params:
+            with ssh.RemoteFile(ssh_params, file_path, mode) as fh:
+                return call(fh, path_to_orginal)
+        else:
+            with open(file_path, mode) as fh:
+                return call(fh, path_to_orginal)
+
     def load(self, file_path, ssh_params=None, path_to_original=None):
-        def read(fh):
+        def read(fh, path_to_original):
             if path_to_original:
                 self.data = pickle.loads(
                     steganography.read(fh, path_to_original))
             else:
                 self.data = pickle.load(fh)
-        if ssh_params:
-            with ssh.RemoteFile(ssh_params, file_path) as fh:
-                read(fh)
-        else:
-            with open(file_path, 'rb') as fh:
-                read(fh)
+        self._open(file_path, ssh_params, path_to_original, 'rb', read)
         self._locked = True
 
     def save(self, file_path, ssh_params=None, path_to_original=None):
-        def write(fh):
+        def write(fh, path_to_orginal):
             if path_to_original:
                 steganography.write(
                     fh, path_to_original, pickle.dumps(self.data))
             else:
                 fh.write(pickle.dumps(self.data))
-        if ssh_params:
-            with ssh.RemoteFile(ssh_params, file_path, 'wb') as fh:
-                write(fh)
-        else:
-            with open(file_path, 'wb') as fh:
-                write(fh)
+        self._open(file_path, ssh_params, path_to_original, 'wb', write)
 
     def load_clear(self, fh):
         '''Load data from open file containing clear text data.'''
