@@ -218,7 +218,9 @@ class SetupFiles(Dialog):
             self.clear_on_exit.set(initial_data.get('clear_on_exit', True))
 
         # Entries
-        for key, name in (('file_location',
+        for key, name in (('sync_time',
+                           'Remote file sync time in minutes'),
+                          ('file_location',
                            'Password file location'),
                           ('original_file',
                            'Steganography original file location')):
@@ -234,7 +236,7 @@ class SetupFiles(Dialog):
 
     def apply(self):
         self.result = {key: getattr(self, key).get() for
-                       key in ('file_location', 'original_file',
+                       key in ('sync_time', 'file_location', 'original_file',
                                'use_steganography', 'clear_on_exit')}
 
 
@@ -358,7 +360,7 @@ class Timer():
     def reset(self, *args, **kwargs):
         """Reset timer"""
         self.timer and self.master.after_cancel(self.timer)
-        self.timer = self.master.after(self.after, self.trigger)
+        self.timer = self.master.after(self.after, self._trigger)
 
     def stop(self):
         """Stop timer."""
@@ -366,7 +368,7 @@ class Timer():
 
     def start(self):
         """Start timer, only used after it has been stoped."""
-        self.timer = self.master.after(self.after, self.trigger)
+        self.timer = self.master.after(self.after, self._trigger)
 
 
 def check_version(name):

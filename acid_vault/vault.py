@@ -25,6 +25,7 @@ import os
 import pickle
 import random
 import string
+import uuid
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
@@ -70,19 +71,6 @@ class Vault():
     def timestamp(self):
         return self.data.get('timestamp')
 
-    def get_remote_timestamp(self, file_path, ssh_params, path_to_original):
-        def get_ts(fh, path_to_original):
-            if path_to_original:
-                data = steganography.read(fh, path_to_original, size=26)
-            else:
-                data = fh.read(26)
-            try:
-                return datetime.datetime.fromisoformat(str(data, 'utf-8'))
-            except ValueError:
-                return None
-        return self._open(
-            file_path, ssh_params, path_to_original, 'rb', get_ts)
-
     def _open(self, file_path, ssh_params, path_to_orginal, mode, call):
         if ssh_params:
             with ssh.RemoteFile(ssh_params, file_path, mode) as fh:
@@ -90,6 +78,39 @@ class Vault():
         else:
             with open(file_path, mode) as fh:
                 return call(fh, path_to_orginal)
+
+    def check_remote(self, file_path, ssh_params, path_to_original):
+        def check(fh, path_to_original):
+            if path_to_original:
+                data = steganography.read(fh, path_to_original)
+            else:
+                data = pickle.load(fh)
+            try:
+                remote_ts = data.get('timestamp')
+                remote_ts = datetime.datetime.fromisoformat(remote_ts)
+                local_ts = self.data.get('timestamp')
+                local_ts = datetime.datetime.fromisoformat(local_ts)
+            except ValueError:
+                return
+            if remote_ts > local_ts:
+                return data
+        return self._open(file_path, ssh_params, path_to_original, 'rb', check)
+
+    def merge(self, password, data, file_path, ssh_params, path_to_original):
+        self.unlock(password)
+        data = self._unlock(password, data)
+        updated = False
+        current = {obj['uid']: obj['date'] for obj in self.data['vault']}
+        for obj in data:
+            if obj['uid'] not in current:
+                self.add(obj)
+                updated = True
+            elif obj['date'] > current[obj['uid']]['date']:
+                self.replace(obj)
+                updated = True
+        self.lock(password)
+        if updated:
+            self.save(file_path, ssh_params, path_to_original)
 
     def load(self, file_path, ssh_params=None, path_to_original=None):
         def read(fh, path_to_original):
@@ -108,6 +129,7 @@ class Vault():
                     fh, path_to_original, pickle.dumps(self.data))
             else:
                 fh.write(pickle.dumps(self.data))
+        self.data['timestamp'] = datetime.datetime.utcnow()
         self._open(file_path, ssh_params, path_to_original, 'wb', write)
 
     def load_clear(self, fh):
@@ -140,13 +162,18 @@ class Vault():
         '''Unlock vault with password.'''
         if not self._locked:
             return
-        key = self.create_key(password,
-                              self.data['salt'],
-                              self.data.get('iterations', 1000000))
-        try:
-            self.data['vault'] = pickle.loads(Fernet(key).decrypt(
-                self.data['vault']))
+        data = self._unlock(password, self.data)
+        if data:
+            self.data = data
             self._locked = False
+
+    def _unlock(self, password, data):
+        key = self.create_key(password,
+                              data['salt'],
+                              data.get('iterations', 1000000))
+        try:
+            data['vault'] = pickle.loads(Fernet(key).decrypt(data['vault']))
+            return data
         except InvalidToken:
             pass
 
@@ -168,11 +195,20 @@ class Vault():
 
     def set_objects(self, objs):
         '''Set vault content to input.'''
-        self.data['vault'] = objs
+        for obj in objs:
+            self.add(obj)
 
     def add(self, obj):
         '''Add to vault content.'''
+        if 'uid' not in obj:
+            obj['uid'] = uuid.uuid4()
         self.data['vault'].append(obj)
+
+    def replace(self, obj):
+        for index, current_obj in enumerate(self.data['vault']):
+            if current_obj['uid'] == obj['uid']:
+                self.data['vault'][index] = obj
+                return True
 
     def remove_password(self, obj):
         '''Remove obj from vault if it exists.'''

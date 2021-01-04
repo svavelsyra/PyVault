@@ -183,6 +183,11 @@ class GUI():
                 if widgets.check_version('acid_vault') != __version__:
                     self.status.set('New version avaliable at pypi', 'green')
 
+            sync = int(obj.get('file_config', {}).get('sync_time', 0))
+            sync = sync * 60 * 1000
+            if sync:
+                widgets.Timer(self.master, self.remote_sync, sync)
+
         except Exception as err:
             print(err)
 
@@ -237,71 +242,52 @@ class GUI():
             return
         return True
 
-    def load(self, path=None):
-        """Get and unlock passwords from vault."""
+    def remote_sync(self):
+        sync_time = int(self.file_config.get('sync_time'), 0) * 60 * 1000
+        if sync_time:
+            if self.vault:
+                data = self.vault.check_remote()
+                if data:
+                    self.vault.merge(self._password, data, *self.get_params())
+            widgets.Timer(self.master, self.remote_sync, sync_time)
+
+    def get_params(self, path=None):
         ssh_params = None
-        if not self.verify():
-            return
-<<<<<<< HEAD
-        location = fh.name if fh else self.file_config['file_location']
-        if fh:
-            self.status.set(f'Loading passwords from: {location} '
-                            'this may take a while...')
-            load_passwords(fh)
-        elif self.file_location.get() == 'Local':
-            self.status.set(f'Getting local passwords at: {location} '
-                            'this may take a while...')
-            self.make_dirs()
-            with open(location, 'rb') as fh:
-                load_passwords(fh)
-        elif self.file_location.get() == 'Remote':
-            self.status.set(f'Getting remote passwords at: {location} '
-                            'this may take a while...')
-            try:
-                with ssh.RemoteFile(self.ssh_config,
-                                    location,
-                                    constants.data_dir(), 'r') as fh:
-                    load_passwords(fh)
-            except Exception as err:
-                self.status.set(err, color='red')
-                return
-        self.status.set('Passwords successfully recieved')
-=======
         if not path:
             path = self.file_config['file_location']
             ssh_params = (self.file_location.get() == 'Remote' and
                           self.ssh_config)
+        original_file_path = (self.file_config.get('use_steganography') and
+                              self.file_config['original_file'])
+        return path, ssh_params, original_file_path
+
+    def load(self, path=None):
+        """Get and unlock passwords from vault."""
+        if not self.verify():
+            return
+        path, ssh_params, original_file_path = self.get_params(path)
         if not path:
             self.status.set('No path to load', color='red')
             return
         msg = f'Loading passwords from {path}, this may take a while...'
         self.status.set(msg)
-        original_file_path = (self.file_config.get('use_steganography') and
-                              self.file_config['original_file'])
         try:
             self.vault = Vault(path, ssh_params, original_file_path)
         except Exception as err:
             self.status.set(err, color='red')
             return
         self.status.set('Passwords successfully loaded')
->>>>>>> 2f37651 (Working commit)
         self.update_password_box()
 
     def save(self, path=None):
         """Lock and save vault in to file."""
-        ssh_params = None
         if not self.verify():
             return
-        if not path:
-            path = self.file_config['file_location']
-            ssh_params = (self.file_location.get() == 'Remote' and
-                          self.ssh_config)
+        path, ssh_params, original_file_path = self.get_params()
         if not path:
             self.status.set('Empty path, aborting', color='red')
             return
         self._password = self.password.get()
-        path_to_original = (self.file_config.get('use_steganography') and
-                            self.file_config['original_file'])
         self.status.set(f'Saving passwords to {path} this may take a while...')
         if not self.vault:
             self.vault = Vault()
@@ -309,30 +295,7 @@ class GUI():
                    self.passbox.get_children()]
         self.vault.set_objects(objects)
         self.vault.lock(self._password)
-<<<<<<< HEAD
-        location = fh.name if fh else self.file_config['file_location']
-        if fh:
-            save_passwords(fh)
-            self.status.set(f'Saving passwords at: {location} '
-                            'this may take a while...')
-        elif self.file_location.get() == 'Local':
-            self.status.set(f'Saving passwords localy at: {location} '
-                            'this may take a while...')
-            self.make_dirs()
-            with open(location, 'wb') as fh:
-                save_passwords(fh)
-
-        elif self.file_location.get() == 'Remote':
-            self.status.set(f'Saving passwords remotly at: {location} '
-                            'this may take a while...')
-            with ssh.RemoteFile(self.ssh_config,
-                                location,
-                                constants.data_dir(), 'w') as fh:
-                save_passwords(fh)
-
-=======
-        self.vault.save(path, ssh_params, path_to_original)
->>>>>>> 2f37651 (Working commit)
+        self.vault.save(path, ssh_params, original_file_path)
         self.vault.unlock(self._password)
         self.passbox.dirty.set(False)
         self.status.set('Passwords saved')
@@ -406,7 +369,6 @@ class GUI():
         if self.vault and not self.vault.locked:
             self.vault.lock(self._password)
             self.lock_btn.config(text='Unlock')
-        self._password = None
         self.password.set('')
         self.passbox.clear()
         self.status.set('Vault locked')
