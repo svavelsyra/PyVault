@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-###############################################################################
-# Acid Vault                                                                  #
-#                                                                             #
-# This program is free software: you can redistribute it and/or modify        #
-# it under the terms of the GNU Affero General Public License as published by #
-# the Free Software Foundation, either version 3 of the License, or           #
-# (at your option) any later version.                                         #
-#                                                                             #
-# This program is distributed in the hope that it will be useful,             #
-# but WITHOUT ANY WARRANTY; without even the implied warranty of              #
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               #
-# GNU Affero General Public License for more details.                         #
-#                                                                             #
-# You should have received a copy of the GNU Affero General Public License    #
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
-###############################################################################
+########################################################################
+# Acid Vault                                                           #
+#                                                                      #
+# This program is free software: you can redistribute it and/or modify #
+# it under the terms of the GNU Affero General Public License as       #
+# published by the Free Software Foundation, either version 3 of the   #
+# License, or (at your option) any later version.                      #
+#                                                                      #
+# This program is distributed in the hope that it will be useful,      #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of       #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the        #
+# GNU Affero General Public License for more details.                  #
+#                                                                      #
+# You should have received a copy of the GNU Affero General Public     #
+# License along with this program.  If not, see                        #
+# <http://www.gnu.org/licenses/>.                                      #
+########################################################################
 '''
 Graphical User Interface towards password vault.
 '''
@@ -28,6 +29,7 @@ try:
     import tkinter.messagebox
     import tkinter.filedialog
     import tkinter.ttk
+    import uuid
 
     import constants
     import legacy_load
@@ -72,6 +74,9 @@ class GUI():
         # Activity sensor.
         timer = widgets.Timer(self.master, self.lock, 5000*60, True)
         master.bind_all('<Enter>', timer.reset)
+
+        # Sync timer.
+        widgets.Timer(self.master, self.remote_sync, 1000*20, True)
 
         # Buttons.
         save_pass = widgets.Box(
@@ -183,11 +188,6 @@ class GUI():
                 if widgets.check_version('acid_vault') != __version__:
                     self.status.set('New version avaliable at pypi', 'green')
 
-            sync = int(obj.get('file_config', {}).get('sync_time', 0))
-            sync = sync * 60 * 1000
-            if sync:
-                widgets.Timer(self.master, self.remote_sync, sync)
-
         except Exception as err:
             print(err)
 
@@ -243,13 +243,11 @@ class GUI():
         return True
 
     def remote_sync(self):
-        sync_time = int(self.file_config.get('sync_time'), 0) * 60 * 1000
-        if sync_time:
-            if self.vault:
-                data = self.vault.check_remote()
-                if data:
-                    self.vault.merge(self._password, data, *self.get_params())
-            widgets.Timer(self.master, self.remote_sync, sync_time)
+        if self.file_config.get('sync') and self.vault:
+            params = self.get_params()
+            data = self.vault.check_remote(*params)
+            if data:
+                self.vault.merge(self._password, data, *params)
 
     def get_params(self, path=None):
         ssh_params = None
@@ -390,7 +388,7 @@ class GUI():
 class PasswordBox(tkinter.ttk.Treeview):
     """Class to display password list."""
     def __init__(self, master):
-        columns = ('System', 'User Name', 'Password', 'Notes')
+        columns = ('Uid', 'Date', 'System', 'User Name', 'Password', 'Notes')
         self.f = tkinter.Frame(master)
         super().__init__(self.f,
                          columns=columns,
@@ -428,8 +426,11 @@ class PasswordBox(tkinter.ttk.Treeview):
         password = password or widgets.AddPassword(self.master).result
         if not password:
             return
+        # Converting to new format if needed.
+        if len(password) == 4:
+            password = [uuid.uuid4(), datetime.datetime.utcnow(), *password]
         for index, iid in enumerate(self.get_children()):
-            if self.set(iid, 'System').lower() > password[0].lower():
+            if self.set(iid, 'System').lower() > password[2].lower():
                 self.insert('', index, values=password)
                 break
         else:

@@ -82,15 +82,17 @@ class Vault():
     def check_remote(self, file_path, ssh_params, path_to_original):
         def check(fh, path_to_original):
             if path_to_original:
-                data = steganography.read(fh, path_to_original)
+                data = pickle.loads(steganography.read(fh, path_to_original))
             else:
                 data = pickle.load(fh)
             try:
                 remote_ts = data.get('timestamp')
+                print(remote_ts)
                 remote_ts = datetime.datetime.fromisoformat(remote_ts)
                 local_ts = self.data.get('timestamp')
                 local_ts = datetime.datetime.fromisoformat(local_ts)
-            except ValueError:
+                print('check done')
+            except (ValueError, TypeError):
                 return
             if remote_ts > local_ts:
                 return data
@@ -200,14 +202,14 @@ class Vault():
 
     def add(self, obj):
         '''Add to vault content.'''
-        if 'uid' not in obj:
-            obj['uid'] = uuid.uuid4()
         self.data['vault'].append(obj)
+        self.data['timestamp'] = datetime.datetime.utcnow()
 
     def replace(self, obj):
         for index, current_obj in enumerate(self.data['vault']):
             if current_obj['uid'] == obj['uid']:
                 self.data['vault'][index] = obj
+                self.data['timestamp'] = datetime.datetime.utcnow()
                 return True
 
     def remove_password(self, obj):
