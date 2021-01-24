@@ -125,8 +125,8 @@ class AddPassword(Dialog):
         master.bind_all('<Enter>', self.timer.reset)
         """Body of set key dialog."""
         self.initial_data = initial_data
-        if initial_data and isinstance(initial_data[0], uuid.UUID):
-            self.uid = initial_data[0]
+        if len(initial_data) == 6:
+            self.uid = uuid.UUID(initial_data[0])
             start = 2
         else:
             self.uid = uuid.uuid4()

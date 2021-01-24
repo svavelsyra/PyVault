@@ -38,13 +38,7 @@ class RemoteFile():
                                            'username',
                                            'password')]
         self.ssh = paramiko.SSHClient()
-        data_dir = constants.data_dir()
-        try:
-            self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
-        except FileNotFoundError:
-            os.makedirs(data_dir, exist_ok=True)
-            with open(os.path.join(data_dir, '.know_hosts'), 'w'):
-                pass
+        load_host_keys(self.ssh)
         self._connect(host, port, username, password)
         self.filepath = filepath
         self.sftp = None
@@ -110,3 +104,45 @@ class RemoteFile():
         except FileNotFoundError:
             pass
         return self.sftp.open(path, *args, **kwargs)
+
+
+def load_host_keys(client):
+    data_dir = constants.data_dir()
+    try:
+        self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
+    except FileNotFoundError:
+        os.makedirs(data_dir, exist_ok=True)
+        with open(os.path.join(data_dir, '.know_hosts'), 'w'):
+            pass
+    
+def upload_pub_key(
+        host, port, user, password, key_path, accept_unknown_host=False, comment=False):
+    client = paramiko.SSHClient()
+    if accept_unknown_host:
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+    client.connect(host, int(port), user, password)
+    transport = client.get_transport()
+    transport.send_ignore()
+    sftp = client.open_sftp()
+    key = read_key(key_path)
+    try:
+        sftp.mkdir('.ssh')
+    except IOError:
+        pass
+    with sftp.open('.ssh/authorized_keys', 'r+') as fh:
+        existing_keys = [x.rstrip('\n') for x in fh.readlines()]
+        if key in existing_keys:
+            return
+        if comment:
+            print(f'# {comment}', file=fh)
+        print(key, file=fh)
+    sftp.close()
+    transport.close()
+    client.close()
+    
+def read_key(key_path):
+    with open(key_path) as fh:
+        rows = [x.strip('\n') for x in fh.readlines()]
+        comment = rows[1].split('"')[1]
+        key = ''.join(rows[2:-1])
+        return f'ssh-rsa {key} {comment}'

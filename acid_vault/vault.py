@@ -90,8 +90,8 @@ class Vault():
                 print(remote_ts)
                 remote_ts = datetime.datetime.fromisoformat(remote_ts)
                 local_ts = self.data.get('timestamp')
+                print(local_ts)
                 local_ts = datetime.datetime.fromisoformat(local_ts)
-                print('check done')
             except (ValueError, TypeError):
                 return
             if remote_ts > local_ts:
