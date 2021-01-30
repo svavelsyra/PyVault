@@ -25,7 +25,6 @@ import os
 import pickle
 import random
 import string
-import uuid
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
@@ -86,15 +85,15 @@ class Vault():
             else:
                 data = pickle.load(fh)
             try:
-                remote_ts = data.get('timestamp')
-                print(remote_ts)
-                remote_ts = datetime.datetime.fromisoformat(remote_ts)
-                local_ts = self.data.get('timestamp')
-                print(local_ts)
-                local_ts = datetime.datetime.fromisoformat(local_ts)
+                remote_ts = datetime.datetime.fromisoformat(
+                    data.get('timestamp'))
+                local_ts = datetime.datetime.fromisoformat(
+                    self.data.get('timestamp'))
             except (ValueError, TypeError):
                 return
+            print(f'Remote: {remote_ts}\nLocal: {local_ts}')
             if remote_ts > local_ts:
+                print('MERGE')
                 return data
         return self._open(file_path, ssh_params, path_to_original, 'rb', check)
 
@@ -104,10 +103,10 @@ class Vault():
         updated = False
         current = {obj['uid']: obj['date'] for obj in self.data['vault']}
         for obj in data:
-            if obj['uid'] not in current:
+            if 'uid' in obj and obj['uid'] not in current:
                 self.add(obj)
                 updated = True
-            elif obj['date'] > current[obj['uid']]['date']:
+            elif 'date' in obj and obj['date'] > current[obj['uid']]['date']:
                 self.replace(obj)
                 updated = True
         self.lock(password)
