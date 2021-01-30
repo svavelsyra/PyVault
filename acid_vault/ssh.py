@@ -14,14 +14,22 @@
 # You should have received a copy of the GNU Affero General Public License    #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
 ###############################################################################
-
-'''
+"""
 Handle files on Remote server through ssh.
 Wrapper around Paramiko sftp server.
-'''
+"""
 import os
 import paramiko
 import tkinter.messagebox
+
+
+class MissingKeyError(Exception):
+    def __init__(self, client, hostname, key):
+        super().__init__(f'{hostname}: {key.get_base64()} '
+                         'is missing in hostfile')
+        self.client = client
+        self.hostname = hostname
+        self.key = key
 
 
 class RemoteFile():
@@ -36,12 +44,15 @@ class RemoteFile():
                                            'username',
                                            'password')]
         self.ssh = paramiko.SSHClient()
+        self.ssh.set_missing_host_key_policy(RejectKeyPolicy())
+        self.known_hosts = os.path.join(data_dir, '.know_hosts')
         try:
-            self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
+            self.ssh.load_host_keys(self.known_hosts)
         except FileNotFoundError:
             os.makedirs(data_dir, exist_ok=True)
-            with open(os.path.join(data_dir, '.know_hosts'), 'w'):
+            with open(self.known_hosts, 'w'):
                 pass
+            self.ssh.load_host_keys(self.known_hosts)
         self._connect(host, port, username, password)
         self.filepath = filepath
         self.sftp = None
@@ -54,23 +65,48 @@ class RemoteFile():
     def __exit__(self, *args):
         self.close()
 
-    def _connect(self, host, port, username, password, unknown_host=False):
+    def _connect(self, host, port, username, password):
         try:
-            if unknown_host:
-                self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy)
             self.ssh.connect(host, int(port), username, password)
+        except paramiko.ssh_exception.BadHostKeyException as err:
+            if tkinter.messagebox.askokcancel(
+                    'Bad Host Key',
+                    f'{err}\n '
+                    'This may be a Man In the Middle attack\n '
+                    'Continue anyway?'):
+                keys = self.ssh.get_host_keys()
+                hostname = (err.hostname if err.hostname in keys else
+                            f'[{err.hostname}]:{port}')
+                if hostname not in keys:
+                    raise
+                self.add_key(hostname, err.key)
+                self._connect(host, port, username, password)
+                return
+
         except paramiko.ssh_exception.SSHException as err:
             if str(err) == 'Authentication failed.':
                 tkinter.messagebox.showerror('Authentication failed.',
                                              'Authentication failed.')
-                self.ssh.close()
-                return
+        except MissingKeyError as err:
             if tkinter.messagebox.askokcancel(
-                    "Unknown host", "Unknown host!\n"
-                    "Do you want to continue connecting?"):
-                self._connect(host, port, username, password, True)
-            else:
-                self.ssh.close()
+                    'Missing Host Key',
+                    f'{err}\n '
+                    'Continue anyway?'):
+                self.add_key(err.hostname, err.key)
+                self._connect(host, port, username, password)
+                return
+        else:
+            # All OK
+            return
+        # If we have here an exception has happened
+        self.ssh.close()
+
+    def add_key(self, hostname, key):
+        """Adds keys to host file."""
+        keys = self.ssh.get_host_keys()
+        keys.pop(hostname, '')
+        keys.add(hostname, 'ssh-rsa', key)
+        keys.save(self.known_hosts)
 
     def _makedirs(self, path):
         current_path = ''
@@ -82,7 +118,7 @@ class RemoteFile():
                 self.sftp.mkdir(current_path)
 
     def close(self):
-        '''Close all open handles in the correct order.'''
+        """Close all open handles in the correct order."""
         if self.stat:
             self.sftp.utime(self.filepath, (self.stat.st_atime,
                                             self.stat.st_mtime))
@@ -108,3 +144,8 @@ class RemoteFile():
         except FileNotFoundError:
             tkinter.messagebox.showerror(
                 'File not found!', f'Unable to find the file {self.filepath}')
+
+
+class RejectKeyPolicy(paramiko.client.MissingHostKeyPolicy):
+    def missing_host_key(self, client, hostname, key):
+        raise MissingKeyError(client, hostname, key)
