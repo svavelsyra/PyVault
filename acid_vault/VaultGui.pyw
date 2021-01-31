@@ -25,6 +25,7 @@ try:
     import time
     import pickle
     import os
+    import threading
     import tkinter
     import tkinter.messagebox
     import tkinter.filedialog
@@ -52,6 +53,7 @@ class GUI():
         self.ssh_config = {}
         self.file_config = {}
         self.last_update = False
+        self.file_lock = threading.Lock()
 
         top = tkinter.Frame(master)
         top.pack(side='top', fill=tkinter.X)
@@ -243,11 +245,17 @@ class GUI():
         return True
 
     def remote_sync(self):
-        if self.file_config.get('sync') and self.vault:
-            params = self.get_params()
-            data = self.vault.check_remote(*params)
-            if data:
-                self.vault.merge(self._password, data, *params)
+        def sync_worker():
+            try:
+                params = self.get_params()
+                data = self.vault.check_remote(*params)
+                if data:
+                    self.vault.merge(self._password, data, *params)
+            finally:
+                self.file_lock.release()
+        if (self.file_config.get('sync') and
+                self.vault and self.file_lock.acquire(timeout=1)):
+            threading.Thread(target=sync_worker).start()
 
     def get_params(self, path=None):
         ssh_params = None
@@ -263,6 +271,8 @@ class GUI():
         """Get and unlock passwords from vault."""
         if not self.verify():
             return
+        self.status.set('Aquiring file lock')
+        self.file_lock.acquire()
         path, ssh_params, original_file_path = self.get_params(path)
         if not path:
             self.status.set('No path to load', color='red')
@@ -276,27 +286,34 @@ class GUI():
             return
         self.status.set('Passwords successfully loaded')
         self.update_password_box()
+        self.file_lock.release()
 
     def save(self, path=None):
         """Lock and save vault in to file."""
-        if not self.verify():
-            return
-        path, ssh_params, original_file_path = self.get_params()
-        if not path:
-            self.status.set('Empty path, aborting', color='red')
-            return
-        self._password = self.password.get()
-        self.status.set(f'Saving passwords to {path} this may take a while...')
-        if not self.vault:
-            self.vault = Vault()
-        objects = [self.passbox.item(x, 'values') for x in
-                   self.passbox.get_children()]
-        self.vault.set_objects(objects)
-        self.vault.lock(self._password)
-        self.vault.save(path, ssh_params, original_file_path)
-        self.vault.unlock(self._password)
-        self.passbox.dirty.set(False)
-        self.status.set('Passwords saved')
+        self.status.set('Acquiring file lock')
+        self.file_lock.acquire()
+        try:
+            if not self.verify():
+                return
+            path, ssh_params, original_file_path = self.get_params()
+            if not path:
+                self.status.set('Empty path, aborting', color='red')
+                return
+            self._password = self.password.get()
+            self.status.set(f'Saving passwords to {path} this may take '
+                            'a while...')
+            if not self.vault:
+                self.vault = Vault()
+            objects = [self.passbox.item(x, 'values') for x in
+                       self.passbox.get_children()]
+            self.vault.set_objects(objects)
+            self.vault.lock(self._password)
+            self.vault.save(path, ssh_params, original_file_path)
+            self.vault.unlock(self._password)
+            self.passbox.dirty.set(False)
+            self.status.set('Passwords saved')
+        finally:
+            self.file_lock.relase()
 
     def save_clear(self, file_path):
         '''Make a dump of all password as a clear text file.'''

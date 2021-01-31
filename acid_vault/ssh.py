@@ -21,6 +21,7 @@ Wrapper around Paramiko sftp server.
 '''
 import os
 import paramiko
+import tempfile
 import tkinter.messagebox
 
 import constants
@@ -43,6 +44,8 @@ class RemoteFile():
         self.filepath = filepath
         self.sftp = None
         self.stat = None
+        self.lock = None
+        self.lock_script_path = '/tmp/lock_script.cmd'
         self.fh = self._open(*args, **kwargs)
 
     def __enter__(self):
@@ -80,6 +83,11 @@ class RemoteFile():
 
     def close(self):
         '''Close all open handles in the correct order.'''
+        if self.lock:
+            try:
+                self.lock.write('quit')
+            except Exception:
+                pass
         if self.stat:
             self.sftp.utime(self.filepath, (self.stat.st_atime,
                                             self.stat.st_mtime))
@@ -89,7 +97,7 @@ class RemoteFile():
             except Exception:
                 pass
 
-    def _open(self, *args, **kwargs):
+    def _open(self, *args, timeout=60, **kwargs):
         """Open remote path."""
         path = kwargs.pop('path', self.filepath)
         transport = self.ssh.get_transport()
@@ -103,20 +111,62 @@ class RemoteFile():
             self.stat = self.sftp.stat(path)
         except FileNotFoundError:
             pass
+        if [x for x in args if 'w' in x] or 'w' in kwargs.get('mode', ''):
+            options = f'-e -w {timeout}'
+        else:
+            options = f'-s -w {timeout}'
+        self.lock = self.aquire_lock(options)
+        if not self.lock:
+            return
         return self.sftp.open(path, *args, **kwargs)
+
+    def create_lock_script(self):
+        try:
+            self.sftp.stat(self.lock_script_path)
+        except IOError:
+            fh, file_path = tempfile.mkstemp(text=True)
+            with open(file_path, 'w') as fh:
+                print('#!/bin/sh\n'
+                      'echo "OK"\n'
+                      'INPUT=init\n'
+                      'while [ "$INPUT" != "quit" ]\n'
+                      '    do\n'
+                      '        read INPUT\n'
+                      '    done\n',
+                      file=fh)
+            self.sftp.put(file_path, self.lock_script_path)
+            os.remove(file_path)
+
+    def aquire_lock(self, options='-e -w 60'):
+        self.create_lock_script()
+        stdin, stdout, stderr = self.ssh.exec_command(
+            f'flock {options} /tmp/vault.lock {self.lock_script_path}')
+        try:
+            stdout.readline()
+        except OSError:
+            return
+        return stdin
+
+    def release_lock(self, pipe):
+        pipe.write('quit')
+
+    def force_lock(self):
+        self.ssh.exec_command('rm /tmp/vault.lock')
 
 
 def load_host_keys(client):
     data_dir = constants.data_dir()
     try:
-        self.ssh.load_host_keys(os.path.join(data_dir, '.know_hosts'))
+        client.load_host_keys(os.path.join(data_dir, '.know_hosts'))
     except FileNotFoundError:
         os.makedirs(data_dir, exist_ok=True)
         with open(os.path.join(data_dir, '.know_hosts'), 'w'):
             pass
-    
+
+
 def upload_pub_key(
-        host, port, user, password, key_path, accept_unknown_host=False, comment=False):
+        host, port, user, password, key_path, accept_unknown_host=False,
+        comment=False):
     client = paramiko.SSHClient()
     if accept_unknown_host:
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
@@ -139,7 +189,8 @@ def upload_pub_key(
     sftp.close()
     transport.close()
     client.close()
-    
+
+
 def read_key(key_path):
     with open(key_path) as fh:
         rows = [x.strip('\n') for x in fh.readlines()]

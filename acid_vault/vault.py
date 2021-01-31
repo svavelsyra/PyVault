@@ -84,16 +84,10 @@ class Vault():
                 data = pickle.loads(steganography.read(fh, path_to_original))
             else:
                 data = pickle.load(fh)
-            try:
-                remote_ts = datetime.datetime.fromisoformat(
-                    data.get('timestamp'))
-                local_ts = datetime.datetime.fromisoformat(
-                    self.data.get('timestamp'))
-            except (ValueError, TypeError):
-                return
+            remote_ts = data.get('timestamp')
+            local_ts = self.data.get('timestamp')
             print(f'Remote: {remote_ts}\nLocal: {local_ts}')
-            if remote_ts > local_ts:
-                print('MERGE')
+            if remote_ts and local_ts and remote_ts > local_ts:
                 return data
         return self._open(file_path, ssh_params, path_to_original, 'rb', check)
 
