@@ -53,3 +53,13 @@ __email__ = "acid_vault@h2so4.se"
 
 __license__ = "GNU Affero General Public License v3"
 __copyright__ = "2020 %s" % __author__
+
+
+def same_major_version(version1, version2=None):
+    version2 = version2 or __version__
+    try:
+        version1 = version1.split('.')
+        version2 = version2.split('.')
+        return version1[0] == version2[0] and version1[1] == version2[1]
+    except Exception as err:
+        print(err)

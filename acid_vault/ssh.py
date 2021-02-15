@@ -48,11 +48,11 @@ class RemoteFile():
                                            'password')]
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(RejectKeyPolicy())
-        self.known_hosts = os.path.join(data_dir, '.know_hosts')
+        self.known_hosts = os.path.join(constants.data_dir(), '.know_hosts')
         try:
             self.ssh.load_host_keys(self.known_hosts)
         except FileNotFoundError:
-            os.makedirs(data_dir, exist_ok=True)
+            os.makedirs(constants.data_dir(), exist_ok=True)
             with open(self.known_hosts, 'w'):
                 pass
             self.ssh.load_host_keys(self.known_hosts)
@@ -238,11 +238,8 @@ def read_key(key_path):
         comment = rows[1].split('"')[1]
         key = ''.join(rows[2:-1])
         return f'ssh-rsa {key} {comment}'
-            tkinter.messagebox.showerror(
-                'File not found!', f'Unable to find the file {self.filepath}')
 
 
 class RejectKeyPolicy(paramiko.client.MissingHostKeyPolicy):
     def missing_host_key(self, client, hostname, key):
         raise MissingKeyError(client, hostname, key)
-
