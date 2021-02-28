@@ -203,8 +203,10 @@ class Vault():
 
     def set_objects(self, objs):
         '''Set vault content to input.'''
-        for obj in objs:
-            self.add(obj)
+        if not self.locked:
+            self.data['vault'] = []
+            for obj in objs:
+                self.add(obj)
 
     def add(self, obj):
         '''Add to vault content.'''

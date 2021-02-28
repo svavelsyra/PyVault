@@ -25,6 +25,8 @@ import tkinter.messagebox
 
 import constants
 
+LOCK_PATH = r'/tmp/vault.lock'
+
 
 class MissingKeyError(Exception):
     def __init__(self, client, hostname, key):
@@ -46,6 +48,7 @@ class RemoteFile():
                                            'port',
                                            'username',
                                            'password')]
+        self.safe_write = None
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(RejectKeyPolicy())
         self.known_hosts = os.path.join(constants.data_dir(), '.know_hosts')
@@ -129,6 +132,8 @@ class RemoteFile():
                 self.lock.write('quit')
             except Exception as error:
                 print(f'Failed to close lock: {error}')
+        if self.safe_write:
+            self.ssh.exec_command(f'mv {self.filepath}.bak {self.filepath}')
         if self.stat:
             self.sftp.utime(self.filepath, (self.stat.st_atime,
                                             self.stat.st_mtime))
@@ -138,7 +143,7 @@ class RemoteFile():
             except Exception:
                 pass
 
-    def _open(self, *args, timeout=15, **kwargs):
+    def _open(self, mode='r', *args, timeout=15, **kwargs):
         """Open remote path."""
         path = kwargs.pop('path', self.filepath)
         transport = self.ssh.get_transport()
@@ -160,7 +165,10 @@ class RemoteFile():
         if not self.lock:
             print('Failed to aquire lock')
             return
-        return self.sftp.open(path, *args, **kwargs)
+        if 'w' in mode and self.filepath == path:
+            self.safe_write = True
+            path = f'{path}.bak'
+        return self.sftp.open(path, *args, mode=mode, **kwargs)
 
     def create_lock_script(self):
         try:
@@ -181,7 +189,7 @@ class RemoteFile():
     def aquire_lock(self, options='-e -w 15'):
         self.create_lock_script()
         stdin, stdout, stderr = self.ssh.exec_command(
-            f'flock {options} /tmp/vault.lock -c {self.lock_script_path}')
+            f'flock {options} {LOCK_PATH} -c {self.lock_script_path}')
         if stdout.readline():
             return stdin
 
@@ -189,7 +197,7 @@ class RemoteFile():
         pipe.write('quit')
 
     def force_lock(self):
-        self.ssh.exec_command('rm /tmp/vault.lock')
+        self.ssh.exec_command(f'rm {LOCK_PATH}')
 
 
 def load_host_keys(client):
