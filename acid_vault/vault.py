@@ -34,7 +34,9 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 import ssh
 import steganography
+import version
 
+VERSION = '1.0.0'
 VALID_PASSWORD_TYPES = ('alpha',
                         'alphanum',
                         'alphanumspecial',
@@ -59,7 +61,8 @@ class Vault():
             self.data = {'salt': os.urandom(16),
                          'iterations': 1000000,
                          'vault': [],
-                         'timestamp': datetime.datetime.utcnow()}
+                         'timestamp': datetime.datetime.utcnow(),
+                         'version': VERSION}
 
     @property
     def locked(self):
@@ -73,6 +76,8 @@ class Vault():
     def _open(self, file_path, ssh_params, path_to_orginal, mode, call):
         if ssh_params:
             with ssh.RemoteFile(ssh_params, file_path, mode) as fh:
+                if not fh:
+                    raise VaultError('Could not aquire lock')
                 return call(fh, path_to_orginal)
         else:
             with open(file_path, mode) as fh:
@@ -85,8 +90,15 @@ class Vault():
             else:
                 data = pickle.load(fh)
             remote_ts = data.get('timestamp')
+            remote_ver = data.get('version')
             local_ts = self.data.get('timestamp')
-            print(f'Remote: {remote_ts}\nLocal: {local_ts}')
+            local_ver = self.data.get('version')
+
+            if not (remote_ver and
+                    local_ver and
+                    version.same_minor_version(remote_ver, local_ver)):
+                raise VaultError(
+                    f'Version missmatch: {remote_ver=}, {local_ver=}')
             if remote_ts and local_ts and remote_ts > local_ts:
                 return data
         return self._open(file_path, ssh_params, path_to_original, 'rb', check)
@@ -125,6 +137,7 @@ class Vault():
             else:
                 fh.write(pickle.dumps(self.data))
         self.data['timestamp'] = datetime.datetime.utcnow()
+        self.data['version'] = VERSION
         self._open(file_path, ssh_params, path_to_original, 'wb', write)
 
     def load_clear(self, fh):

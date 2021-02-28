@@ -19,7 +19,7 @@
 '''
 Graphical User Interface towards password vault.
 '''
-from version import __version__
+from version import __version__, same_minor_version
 try:
     import datetime
     import time
@@ -34,7 +34,8 @@ try:
 
     import constants
     import legacy_load
-    from vault import Vault, VaultError
+    from vault import Vault
+    from vault import VaultError
     import widgets
 except ImportError as err:
     tkinter.messagebox.showerror('Failed to import', err)
@@ -78,7 +79,7 @@ class GUI():
         master.bind_all('<Enter>', timer.reset)
 
         # Sync timer.
-        widgets.Timer(self.master, self.remote_sync, 1000*20, True)
+        widgets.Timer(self.master, self.remote_sync, 1000*60*5, True)
 
         # Buttons.
         save_pass = widgets.Box(
@@ -174,7 +175,7 @@ class GUI():
             path = os.path.join(constants.data_dir(), '.vault')
             with open(path, 'rb') as fh:
                 obj = pickle.load(fh)
-            if not obj.get('version') == '1.0.0':
+            if not same_minor_version(obj.get('version'), '1.0.0'):
                 obj = legacy_load.legacy_load(obj)
             for key, value in obj['widgets'].items():
                 try:
@@ -251,6 +252,9 @@ class GUI():
                 data = self.vault.check_remote(*params)
                 if data:
                     self.vault.merge(self._password, data, *params)
+            except VaultError:
+                self.status.set('Version missmatch in remote sync.')
+                return
             finally:
                 self.file_lock.release()
         if (self.file_config.get('sync') and
@@ -273,20 +277,22 @@ class GUI():
             return
         self.status.set('Aquiring file lock')
         self.file_lock.acquire()
-        path, ssh_params, original_file_path = self.get_params(path)
-        if not path:
-            self.status.set('No path to load', color='red')
-            return
-        msg = f'Loading passwords from {path}, this may take a while...'
-        self.status.set(msg)
         try:
-            self.vault = Vault(path, ssh_params, original_file_path)
-        except Exception as err:
-            self.status.set(err, color='red')
-            return
-        self.status.set('Passwords successfully loaded')
-        self.update_password_box()
-        self.file_lock.release()
+            path, ssh_params, original_file_path = self.get_params(path)
+            if not path:
+                self.status.set('No path to load', color='red')
+                return
+            msg = f'Loading passwords from {path}, this may take a while...'
+            self.status.set(msg)
+            try:
+                self.vault = Vault(path, ssh_params, original_file_path)
+            except Exception as err:
+                self.status.set(err, color='red')
+                return
+            self.status.set('Passwords successfully loaded')
+            self.update_password_box()
+        finally:
+            self.file_lock.release()
 
     def save(self, path=None):
         """Lock and save vault in to file."""
@@ -313,7 +319,7 @@ class GUI():
             self.passbox.dirty.set(False)
             self.status.set('Passwords saved')
         finally:
-            self.file_lock.relase()
+            self.file_lock.release()
 
     def save_clear(self, file_path):
         '''Make a dump of all password as a clear text file.'''

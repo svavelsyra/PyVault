@@ -127,8 +127,8 @@ class RemoteFile():
         if self.lock:
             try:
                 self.lock.write('quit')
-            except Exception:
-                pass
+            except Exception as error:
+                print(f'Failed to close lock: {error}')
         if self.stat:
             self.sftp.utime(self.filepath, (self.stat.st_atime,
                                             self.stat.st_mtime))
@@ -138,7 +138,7 @@ class RemoteFile():
             except Exception:
                 pass
 
-    def _open(self, *args, timeout=60, **kwargs):
+    def _open(self, *args, timeout=15, **kwargs):
         """Open remote path."""
         path = kwargs.pop('path', self.filepath)
         transport = self.ssh.get_transport()
@@ -158,13 +158,14 @@ class RemoteFile():
             options = f'-s -w {timeout}'
         self.lock = self.aquire_lock(options)
         if not self.lock:
+            print('Failed to aquire lock')
             return
         return self.sftp.open(path, *args, **kwargs)
 
     def create_lock_script(self):
         try:
             self.sftp.stat(self.lock_script_path)
-        except IOError:
+        except (IOError, FileNotFoundError):
             fh, file_path = tempfile.mkstemp(text=True)
             with open(file_path, 'w') as fh:
                 print('#!/bin/sh\n'
@@ -176,17 +177,14 @@ class RemoteFile():
                       '    done\n',
                       file=fh)
             self.sftp.put(file_path, self.lock_script_path)
-            os.remove(file_path)
+            self.ssh.exec_command(f'chmod +x {self.lock_script_path}')
 
-    def aquire_lock(self, options='-e -w 60'):
+    def aquire_lock(self, options='-e -w 15'):
         self.create_lock_script()
         stdin, stdout, stderr = self.ssh.exec_command(
-            f'flock {options} /tmp/vault.lock {self.lock_script_path}')
-        try:
-            stdout.readline()
-        except OSError:
-            return
-        return stdin
+            f'flock {options} /tmp/vault.lock -c {self.lock_script_path}')
+        if stdout.readline():
+            return stdin
 
     def release_lock(self, pipe):
         pipe.write('quit')
