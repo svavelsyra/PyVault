@@ -167,7 +167,7 @@ class RemoteFile():
             self.sftp.stat(self.lock_script_path)
         except (IOError, FileNotFoundError):
             fh, file_path = tempfile.mkstemp(text=True)
-            with open(file_path, 'w') as fh:
+            with self.sftp.open(self.lock_script_path, 'w') as fh:
                 print('#!/bin/sh\n'
                       'echo "OK"\n'
                       'INPUT=init\n'
@@ -176,7 +176,6 @@ class RemoteFile():
                       '        read INPUT\n'
                       '    done\n',
                       file=fh)
-            self.sftp.put(file_path, self.lock_script_path)
             self.ssh.exec_command(f'chmod +x {self.lock_script_path}')
 
     def aquire_lock(self, options='-e -w 15'):
