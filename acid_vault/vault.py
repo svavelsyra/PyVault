@@ -25,6 +25,7 @@ import os
 import pickle
 import random
 import string
+import uuid
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
@@ -82,6 +83,18 @@ class Vault():
         else:
             with open(file_path, mode) as fh:
                 return call(fh, path_to_orginal)
+
+    def update_version(self, password):
+        if self.data['version'] == VERSION:
+            return
+        lock_stauts = self.locked
+        if lock_stauts:
+            self.unlock(password)
+        for record in self.data['vault']:
+            record['date'] = record.get('date', '')
+            record['uid'] = record.get('uid', uuid.uuid4())
+        if lock_stauts:
+            self.lock(password)
 
     def check_remote(self, file_path, ssh_params, path_to_original):
         def check(fh, path_to_original):
