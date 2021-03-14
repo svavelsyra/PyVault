@@ -85,16 +85,17 @@ class Vault():
                 return call(fh, path_to_orginal)
 
     def update_version(self, password):
-        if self.data['version'] == VERSION:
+        if not version.is_greater_version(VERSION, self.data['version']):
             return
-        lock_stauts = self.locked
-        if lock_stauts:
+        lock_status = self.locked
+        if lock_status:
             self.unlock(password)
         for record in self.data['vault']:
             record['date'] = record.get('date', '')
             record['uid'] = record.get('uid', uuid.uuid4())
-        if lock_stauts:
+        if lock_status:
             self.lock(password)
+        return True
 
     def check_remote(self, file_path, ssh_params, path_to_original):
         def check(fh, path_to_original):

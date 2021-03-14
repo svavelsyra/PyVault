@@ -63,3 +63,12 @@ def same_minor_version(version1, version2=None):
         return version1[0] == version2[0] and version1[1] == version2[1]
     except Exception as err:
         print(err)
+
+
+def is_greater_version(version1, version2):
+    v1 = [int(x) for x in version1.split('.')]
+    v2 = [int(x) for x in version2.split('.')]
+    return (
+        v1[0] > v2[0] or
+        (v1[0] == v2[0] and v1[1] > v2[1]) or
+        (v1[0] == v2[0] and v1[1] == v2[1] and v1[2] > v2[2]))

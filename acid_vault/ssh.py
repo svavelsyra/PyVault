@@ -127,11 +127,6 @@ class RemoteFile():
 
     def close(self):
         """Close all open handles in the correct order."""
-        if self.lock:
-            try:
-                self.lock.write('quit')
-            except Exception as error:
-                print(f'Failed to close lock: {error}')
         if self.safe_write:
             self.ssh.exec_command(f'mv {self.filepath}.bak {self.filepath}')
         if self.stat:
@@ -142,6 +137,11 @@ class RemoteFile():
                 getattr(self, con).close()
             except Exception:
                 pass
+        if self.lock:
+            try:
+                self.lock.write('quit')
+            except Exception as error:
+                print(f'Failed to close lock: {error}')
 
     def _open(self, mode='r', *args, timeout=15, **kwargs):
         """Open remote path."""
@@ -196,6 +196,7 @@ class RemoteFile():
     def release_lock(self, pipe):
         pipe.write('quit')
 
+    # Move outside class
     def force_lock(self):
         self.ssh.exec_command(f'rm {LOCK_PATH}')
 

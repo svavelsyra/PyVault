@@ -230,7 +230,7 @@ class GUI():
             fails = [x for x in ('host', 'port', 'username')
                      if not self.ssh_config.get(x)]
             if fails:
-                err = ('SSH settings for remote is faulty check:'
+                err = ('SSH settings for remote is faulty, check:'
                        f' {", ".join(fails)}')
                 self.status.set(err, color='red')
                 return
@@ -353,6 +353,11 @@ class GUI():
         self.vault.unlock(self._password)
         self.lock_btn.config(text='Lock')
         self.lock_btn.config(state=tkinter.NORMAL)
+        if self.vault.update_version(self.password):
+            self.status.set('Saving updated fileformat to server')
+            self.vault.lock(self._password)
+            self.vault.save(self.get_params())
+            self.vault.unlock(self._password)
         for password in sorted(self.vault.get_objects()):
             self.passbox.add(password)
         self.passbox.dirty.set(False)
