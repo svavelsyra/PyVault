@@ -25,7 +25,7 @@ import tkinter.messagebox
 
 import constants
 
-LOCK_PATH = r'/tmp/vault.lock'
+LOCK_PATH = r'.lock/vault.lock'
 
 
 class MissingKeyError(Exception):
@@ -196,9 +196,12 @@ class RemoteFile():
     def release_lock(self, pipe):
         pipe.write('quit')
 
-    # Move outside class
-    def force_lock(self):
-        self.ssh.exec_command(f'rm {LOCK_PATH}')
+
+def force_lock(host, port, user, password=None):
+    client = paramiko.SSHClient()
+    client.connect(host, int(port), user, password)
+    client.exec_command(f'rm {LOCK_PATH}')
+    client.close()
 
 
 def load_host_keys(client):

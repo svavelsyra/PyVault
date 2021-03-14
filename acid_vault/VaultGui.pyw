@@ -119,6 +119,9 @@ class GUI():
         filemenu.add_command(
             label='Load encrypted',
             command=lambda *args, **kwargs: self.ask_for_file('load'))
+        filemenu.add_command(
+            label='Force lock',
+            command=self.force_lock)
         helpmenu.add_command(
             label='About',
             command=lambda: widgets.About(self.master, 'About'))
@@ -388,6 +391,9 @@ class GUI():
         dirname = os.path.dirname(self.file_config['file_location'])
         if dirname:
             os.makedirs(dirname, exist_ok=True)
+
+    def force_lock(self):
+        self.vault.force_lock(self.get_params()[1])
 
     def lock(self):
         """Lock vault, and clear local password list."""

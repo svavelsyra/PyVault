@@ -84,6 +84,9 @@ class Vault():
             with open(file_path, mode) as fh:
                 return call(fh, path_to_orginal)
 
+    def force_lock(self, ssh_params):
+        ssh.force_lock(**ssh_params)
+
     def update_version(self, password):
         if not version.is_greater_version(VERSION, self.data['version']):
             return
