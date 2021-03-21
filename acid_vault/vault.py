@@ -54,8 +54,15 @@ class VaultError(Exception):
 
 class Vault():
     '''Class to hold salt, iterations and the data.'''
-    def __init__(self, data_path=None, ssh_params=None, path_to_original=None):
+    def __init__(self,
+                 data_path=None,
+                 ssh_params=None,
+                 path_to_original=None,
+                 update=True):
         self._locked = False
+        # When loaded from local file do not update.
+        self.update = update
+
         if data_path:
             self.load(data_path, ssh_params, path_to_original)
         else:
@@ -88,7 +95,9 @@ class Vault():
         ssh.force_lock(**ssh_params)
 
     def update_version(self, password):
-        if not version.is_greater_version(VERSION, self.data['version']):
+        if not self.update:
+            return
+        if not version.is_greater_version(VERSION, self.data.get('version')):
             return
         lock_status = self.locked
         if lock_status:

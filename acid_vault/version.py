@@ -66,6 +66,8 @@ def same_minor_version(version1, version2=None):
 
 
 def is_greater_version(version1, version2):
+    if not (version2):
+        return True
     v1 = [int(x) for x in version1.split('.')]
     v2 = [int(x) for x in version2.split('.')]
     return (

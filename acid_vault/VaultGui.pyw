@@ -276,6 +276,9 @@ class GUI():
 
     def load(self, path=None):
         """Get and unlock passwords from vault."""
+        # If we have loaded a local backup we don't
+        # want to push to the server.
+        update = not path
         if not self.verify():
             return
         self.status.set('Aquiring file lock')
@@ -288,7 +291,8 @@ class GUI():
             msg = f'Loading passwords from {path}, this may take a while...'
             self.status.set(msg)
             try:
-                self.vault = Vault(path, ssh_params, original_file_path)
+                self.vault = Vault(
+                    path, ssh_params, original_file_path, update=update)
             except Exception as err:
                 self.status.set(err, color='red')
                 return
@@ -304,6 +308,10 @@ class GUI():
         try:
             if not self.verify():
                 return
+            # Cannot do self.vault.update = not path here due
+            # to that its not all cases where it holds.
+            if not path:
+                self.vault.update = True
             path, ssh_params, original_file_path = self.get_params()
             if not path:
                 self.status.set('Empty path, aborting', color='red')
@@ -338,7 +346,7 @@ class GUI():
             self.status.set('Save current passwords first', color='red')
             return
         if not self.vault:
-            self.vault = Vault()
+            self.vault = Vault(update=False)
         try:
             with open(file_path) as fh:
                 self.vault.load_clear(fh)
