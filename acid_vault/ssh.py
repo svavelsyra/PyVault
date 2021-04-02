@@ -188,6 +188,8 @@ class RemoteFile():
 
     def aquire_lock(self, options='-e -w 15'):
         self.create_lock_script()
+        self.ssh.exec_command(
+            f'mkdir -p {os.path.dirname(LOCK_PATH)}')
         stdin, stdout, stderr = self.ssh.exec_command(
             f'flock {options} {LOCK_PATH} -c {self.lock_script_path}')
         if stdout.readline():
