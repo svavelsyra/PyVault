@@ -1,30 +1,31 @@
-###############################################################################
-# Acid Vault                                                                  #
-#                                                                             #
-# This program is free software: you can redistribute it and/or modify        #
-# it under the terms of the GNU Affero General Public License as published by #
-# the Free Software Foundation, either version 3 of the License, or           #
-# (at your option) any later version.                                         #
-#                                                                             #
-# This program is distributed in the hope that it will be useful,             #
-# but WITHOUT ANY WARRANTY; without even the implied warranty of              #
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               #
-# GNU Affero General Public License for more details.                         #
-#                                                                             #
-# You should have received a copy of the GNU Affero General Public License    #
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
-###############################################################################
-
+########################################################################
+# Acid Vault                                                           #
+#                                                                      #
+# This program is free software: you can redistribute it and/or modify #
+# it under the terms of the GNU Affero General Public License as       #
+# published by the Free Software Foundation, either version 3 of the   #
+# License, or (at your option) any later version.                      #
+#                                                                      #
+# This program is distributed in the hope that it will be useful,      #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of       #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the        #
+# GNU Affero General Public License for more details.                  #
+#                                                                      #
+# You should have received a copy of the GNU Affero General Public     #
+# License                                                              #
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.#
+########################################################################
 '''
 Encrypts and decrypts data.
 '''
-
 import ast
 import base64
+import datetime
 import os
 import pickle
 import random
 import string
+import uuid
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
@@ -32,6 +33,11 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+import ssh
+import steganography
+import version
+
+VERSION = '1.0.0'
 VALID_PASSWORD_TYPES = ('alpha',
                         'alphanum',
                         'alphanumspecial',
@@ -48,37 +54,118 @@ class VaultError(Exception):
 
 class Vault():
     '''Class to hold salt, iterations and the data.'''
-    def __init__(self, data_file=None):
+    def __init__(self,
+                 data_path=None,
+                 ssh_params=None,
+                 path_to_original=None,
+                 update=True):
         self._locked = False
-        if data_file:
-            self.load_file(data_file)
+        # When loaded from local file do not update.
+        self.update = update
+
+        if data_path:
+            self.load(data_path, ssh_params, path_to_original)
         else:
             self.data = {'salt': os.urandom(16),
                          'iterations': 1000000,
-                         'vault': []}
+                         'vault': [],
+                         'timestamp': datetime.datetime.utcnow(),
+                         'version': VERSION}
 
     @property
     def locked(self):
         '''Locked status of the vault'''
         return self._locked
 
-    def load_data(self, data):
-        '''Load data from a pickle.'''
-        self.data = pickle.loads(data)
+    @property
+    def timestamp(self):
+        return self.data.get('timestamp')
+
+    def _open(self, file_path, ssh_params, path_to_orginal, mode, call):
+        if ssh_params:
+            with ssh.RemoteFile(ssh_params, file_path, mode) as fh:
+                if not fh:
+                    raise VaultError('Could not aquire lock')
+                return call(fh, path_to_orginal)
+        else:
+            with open(file_path, mode) as fh:
+                return call(fh, path_to_orginal)
+
+    def force_lock(self, ssh_params):
+        ssh.force_lock(**ssh_params)
+
+    def update_version(self, password):
+        if not self.update:
+            return
+        if not version.is_greater_version(VERSION, self.data.get('version')):
+            return
+        # Save status of lock so we know if we should lock again.
+        lock_status = self.locked
+        if lock_status:
+            self.unlock(password)
+        for record in self.data['vault']:
+            record['date'] = record.get('date', '')
+            record['uid'] = record.get('uid', uuid.uuid4())
+        if lock_status:
+            self.lock(password)
+        return True
+
+    def check_remote(self, file_path, ssh_params, path_to_original):
+        def check(fh, path_to_original):
+            if path_to_original:
+                data = pickle.loads(steganography.read(fh, path_to_original))
+            else:
+                data = pickle.load(fh)
+            remote_ts = data.get('timestamp')
+            remote_ver = data.get('version')
+            local_ts = self.data.get('timestamp')
+            local_ver = self.data.get('version')
+
+            if not (remote_ver and
+                    local_ver and
+                    version.same_minor_version(remote_ver, local_ver)):
+                raise VaultError(
+                    f'Version missmatch: {remote_ver=}, {local_ver=}')
+            if remote_ts and local_ts and remote_ts > local_ts:
+                return data
+        return self._open(file_path, ssh_params, path_to_original, 'rb', check)
+
+    def merge(self, password, data, file_path, ssh_params, path_to_original):
+        self.unlock(password)
+        data = self._unlock(password, data)
+        updated = False
+        current = {obj['uid']: obj['date'] for obj in self.data['vault']}
+        for obj in data:
+            if 'uid' in obj and obj['uid'] not in current:
+                self.add(obj)
+                updated = True
+            elif 'date' in obj and obj['date'] > current[obj['uid']]['date']:
+                self.replace(obj)
+                updated = True
+        self.lock(password)
+        if updated:
+            self.save(file_path, ssh_params, path_to_original)
+
+    def load(self, file_path, ssh_params=None, path_to_original=None):
+        def read(fh, path_to_original):
+            if path_to_original:
+                self.data = pickle.loads(
+                    steganography.read(fh, path_to_original))
+            else:
+                self.data = pickle.load(fh)
+        self._open(file_path, ssh_params, path_to_original, 'rb', read)
         self._locked = True
 
-    def save_data(self):
-        '''Save data in a pickle and return it.'''
-        return pickle.dumps(self.data)
-
-    def load_file(self, fh):
-        '''Load pickled data from a open file.'''
-        self.data = pickle.load(fh)
-        self._locked = True
-
-    def save_file(self, fh):
-        '''Save data as a pickle in open file.'''
-        pickle.dump(self.data, fh)
+    def save(self, file_path, ssh_params=None, path_to_original=None):
+        def write(fh, path_to_orginal):
+            if path_to_original:
+                steganography.write(
+                    fh, path_to_original, pickle.dumps(self.data))
+            else:
+                fh.write(pickle.dumps(self.data))
+        self.data['timestamp'] = datetime.datetime.utcnow()
+        self.data['version'] = VERSION
+        self._open(file_path, ssh_params, path_to_original, 'wb', write)
 
     def load_clear(self, fh):
         '''Load data from open file containing clear text data.'''
@@ -110,13 +197,18 @@ class Vault():
         '''Unlock vault with password.'''
         if not self._locked:
             return
-        key = self.create_key(password,
-                              self.data['salt'],
-                              self.data.get('iterations', 1000000))
-        try:
-            self.data['vault'] = pickle.loads(Fernet(key).decrypt(
-                self.data['vault']))
+        data = self._unlock(password, self.data)
+        if data:
+            self.data = data
             self._locked = False
+
+    def _unlock(self, password, data):
+        key = self.create_key(password,
+                              data['salt'],
+                              data.get('iterations', 1000000))
+        try:
+            data['vault'] = pickle.loads(Fernet(key).decrypt(data['vault']))
+            return data
         except InvalidToken:
             pass
 
@@ -138,11 +230,22 @@ class Vault():
 
     def set_objects(self, objs):
         '''Set vault content to input.'''
-        self.data['vault'] = objs
+        if not self.locked:
+            self.data['vault'] = []
+            for obj in objs:
+                self.add(obj)
 
     def add(self, obj):
         '''Add to vault content.'''
         self.data['vault'].append(obj)
+        self.data['timestamp'] = datetime.datetime.utcnow()
+
+    def replace(self, obj):
+        for index, current_obj in enumerate(self.data['vault']):
+            if current_obj['uid'] == obj['uid']:
+                self.data['vault'][index] = obj
+                self.data['timestamp'] = datetime.datetime.utcnow()
+                return True
 
     def remove_password(self, obj):
         '''Remove obj from vault if it exists.'''

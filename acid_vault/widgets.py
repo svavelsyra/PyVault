@@ -1,20 +1,22 @@
-###############################################################################
-# Acid Vault                                                                  #
-#                                                                             #
-# This program is free software: you can redistribute it and/or modify        #
-# it under the terms of the GNU Affero General Public License as published by #
-# the Free Software Foundation, either version 3 of the License, or           #
-# (at your option) any later version.                                         #
-#                                                                             #
-# This program is distributed in the hope that it will be useful,             #
-# but WITHOUT ANY WARRANTY; without even the implied warranty of              #
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               #
-# GNU Affero General Public License for more details.                         #
-#                                                                             #
-# You should have received a copy of the GNU Affero General Public License    #
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.       #
-###############################################################################
+########################################################################
+# Acid Vault                                                           #
+#                                                                      #
+# This program is free software: you can redistribute it and/or modify #
+# it under the terms of the GNU Affero General Public License as       #
+# published by the Free Software Foundation, either version 3 of the   #
+# License, or (at your option) any later version.                      #
+#                                                                      #
+# This program is distributed in the hope that it will be useful,      #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of       #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the        #
+# GNU Affero General Public License for more details.                  #
+#                                                                      #
+# You should have received a copy of the GNU Affero General Public     #
+# License along with this program.  If not, see                        #
+# <http://www.gnu.org/licenses/>.                                      #
+########################################################################
 '''Varius GUI widgets'''
+import datetime
 from distutils.version import LooseVersion
 import json
 import os
@@ -22,6 +24,7 @@ import subprocess
 import sys
 import tkinter
 import urllib.request
+import uuid
 
 from version import __version__, __author__, __email__  # noqa:F401,E501 These are actually used
 from version import __license__, __uri__, __summary__  # noqa:F401,E501 These are actually used
@@ -121,10 +124,18 @@ class AddPassword(Dialog):
         self.timer = Timer(master, self.close, 5000*60)
         master.bind_all('<Enter>', self.timer.reset)
         """Body of set key dialog."""
+        self.initial_data = initial_data
+        if initial_data and len(initial_data) == 6:
+            self.uid = uuid.UUID(initial_data[0])
+            start = 2
+        else:
+            self.uid = uuid.uuid4()
+            start = 0
         for index, key in enumerate(('system',
                                      'username',
                                      'password',
-                                     'notes')):
+                                     'notes'),
+                                    start=start):
             setattr(self, key, tkinter.StringVar())
             e = LabelEntry(master,
                            width=50,
@@ -157,10 +168,19 @@ class AddPassword(Dialog):
 
     def apply(self):
         """Set result upon OK button press."""
-        self.result = (self.system.get(),
-                       self.username.get(),
-                       self.password.get(),
-                       self.notes.get())
+        # Only return result if it has changed.
+        result = (self.uid,
+                  datetime.datetime.utcnow(),
+                  self.system.get(),
+                  self.username.get(),
+                  self.password.get(),
+                  self.notes.get())
+        if self.initial_data and len(self.inital_data) == len(result):
+            if [index for index in range(2, 6) if
+                    result[index] != self.initial_data[index]]:
+                self.result = result
+        else:
+            self.result = result
 
     def close(self):
         self.timer.stop()
@@ -204,18 +224,18 @@ class SetupFiles(Dialog):
     '''File related settings, paths and steganography.'''
     def body(self, master, initial_data):
         # Checkboxes.
-        for key in ('use_steganography', 'clear_on_exit'):
-            setattr(self, key, tkinter.BooleanVar())
+        for key, default in (('use_steganography', False),
+                             ('clear_on_exit', True),
+                             ('sync', True)):
+            value = initial_data.get(key, default)
+            setattr(self, key, tkinter.BooleanVar(
+                self, name=key, value=value))
             c = tkinter.Checkbutton(
                 master,
                 text=key.replace('_', ' ').title(),
                 variable=getattr(self, key),
                 anchor='w')
             c.pack(expand=1, fill=tkinter.X)
-        if initial_data:
-            self.use_steganography.set(initial_data.get(
-                'use_steganography', False))
-            self.clear_on_exit.set(initial_data.get('clear_on_exit', True))
 
         # Entries
         for key, name in (('file_location',
@@ -234,7 +254,7 @@ class SetupFiles(Dialog):
 
     def apply(self):
         self.result = {key: getattr(self, key).get() for
-                       key in ('file_location', 'original_file',
+                       key in ('sync', 'file_location', 'original_file',
                                'use_steganography', 'clear_on_exit')}
 
 
@@ -358,7 +378,7 @@ class Timer():
     def reset(self, *args, **kwargs):
         """Reset timer"""
         self.timer and self.master.after_cancel(self.timer)
-        self.timer = self.master.after(self.after, self.trigger)
+        self.timer = self.master.after(self.after, self._trigger)
 
     def stop(self):
         """Stop timer."""
@@ -366,7 +386,7 @@ class Timer():
 
     def start(self):
         """Start timer, only used after it has been stoped."""
-        self.timer = self.master.after(self.after, self.trigger)
+        self.timer = self.master.after(self.after, self._trigger)
 
 
 def check_version(name):

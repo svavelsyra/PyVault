@@ -20,7 +20,12 @@ Wrapper around Paramiko sftp server.
 """
 import os
 import paramiko
+import tempfile
 import tkinter.messagebox
+
+import constants
+
+LOCK_PATH = r'.lock/vault.lock'
 
 
 class MissingKeyError(Exception):
@@ -37,19 +42,20 @@ class RemoteFile():
     Class to handle remote files through ssh.
     Implements context manager.
     """
-    def __init__(self, ssh_params, filepath, data_dir, *args, **kwargs):
-        host, port, username, password = [ssh_params[x] for x in
+    def __init__(self, ssh_params, filepath, *args, **kwargs):
+        host, port, username, password = [ssh_params.get(x) for x in
                                           ('host',
                                            'port',
                                            'username',
                                            'password')]
+        self.safe_write = None
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(RejectKeyPolicy())
-        self.known_hosts = os.path.join(data_dir, '.know_hosts')
+        self.known_hosts = os.path.join(constants.data_dir(), '.know_hosts')
         try:
             self.ssh.load_host_keys(self.known_hosts)
         except FileNotFoundError:
-            os.makedirs(data_dir, exist_ok=True)
+            os.makedirs(constants.data_dir(), exist_ok=True)
             with open(self.known_hosts, 'w'):
                 pass
             self.ssh.load_host_keys(self.known_hosts)
@@ -57,6 +63,8 @@ class RemoteFile():
         self.filepath = filepath
         self.sftp = None
         self.stat = None
+        self.lock = None
+        self.lock_script_path = '/tmp/lock_script.cmd'
         self.fh = self._open(*args, **kwargs)
 
     def __enter__(self):
@@ -119,6 +127,8 @@ class RemoteFile():
 
     def close(self):
         """Close all open handles in the correct order."""
+        if self.safe_write:
+            self.ssh.exec_command(f'mv {self.filepath}.bak {self.filepath}')
         if self.stat:
             self.sftp.utime(self.filepath, (self.stat.st_atime,
                                             self.stat.st_mtime))
@@ -127,8 +137,13 @@ class RemoteFile():
                 getattr(self, con).close()
             except Exception:
                 pass
+        if self.lock:
+            try:
+                self.lock.write('quit')
+            except Exception as error:
+                print(f'Failed to close lock: {error}')
 
-    def _open(self, *args, **kwargs):
+    def _open(self, mode='r', *args, timeout=15, **kwargs):
         """Open remote path."""
         path = kwargs.pop('path', self.filepath)
         transport = self.ssh.get_transport()
@@ -140,10 +155,100 @@ class RemoteFile():
         self._makedirs(os.path.dirname(path))
         try:
             self.stat = self.sftp.stat(path)
-            return self.sftp.open(path, *args, **kwargs)
         except FileNotFoundError:
-            tkinter.messagebox.showerror(
-                'File not found!', f'Unable to find the file {self.filepath}')
+            pass
+        if [x for x in args if 'w' in x] or 'w' in kwargs.get('mode', ''):
+            options = f'-e -w {timeout}'
+        else:
+            options = f'-s -w {timeout}'
+        self.lock = self.aquire_lock(options)
+        if not self.lock:
+            print('Failed to aquire lock')
+            return
+        if 'w' in mode and self.filepath == path:
+            self.safe_write = True
+            path = f'{path}.bak'
+        return self.sftp.open(path, *args, mode=mode, **kwargs)
+
+    def create_lock_script(self):
+        try:
+            self.sftp.stat(self.lock_script_path)
+        except (IOError, FileNotFoundError):
+            fh, file_path = tempfile.mkstemp(text=True)
+            with self.sftp.open(self.lock_script_path, 'w') as fh:
+                print('#!/bin/sh\n'
+                      'echo "OK"\n'
+                      'INPUT=init\n'
+                      'while [ "$INPUT" != "quit" ]\n'
+                      '    do\n'
+                      '        read INPUT\n'
+                      '    done\n',
+                      file=fh)
+            self.ssh.exec_command(f'chmod +x {self.lock_script_path}')
+
+    def aquire_lock(self, options='-e -w 15'):
+        self.create_lock_script()
+        self.ssh.exec_command(
+            f'mkdir -p {os.path.dirname(LOCK_PATH)}')
+        stdin, stdout, stderr = self.ssh.exec_command(
+            f'flock {options} {LOCK_PATH} -c {self.lock_script_path}')
+        if stdout.readline():
+            return stdin
+
+    def release_lock(self, pipe):
+        pipe.write('quit')
+
+
+def force_lock(host, port, user, password=None):
+    client = paramiko.SSHClient()
+    client.connect(host, int(port), user, password)
+    client.exec_command(f'rm {LOCK_PATH}')
+    client.close()
+
+
+def load_host_keys(client):
+    data_dir = constants.data_dir()
+    try:
+        client.load_host_keys(os.path.join(data_dir, '.know_hosts'))
+    except FileNotFoundError:
+        os.makedirs(data_dir, exist_ok=True)
+        with open(os.path.join(data_dir, '.know_hosts'), 'w'):
+            pass
+
+
+def upload_pub_key(
+        host, port, user, password, key_path, accept_unknown_host=False,
+        comment=False):
+    client = paramiko.SSHClient()
+    if accept_unknown_host:
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+    client.connect(host, int(port), user, password)
+    transport = client.get_transport()
+    transport.send_ignore()
+    sftp = client.open_sftp()
+    key = read_key(key_path)
+    try:
+        sftp.mkdir('.ssh')
+    except IOError:
+        pass
+    with sftp.open('.ssh/authorized_keys', 'r+') as fh:
+        existing_keys = [x.rstrip('\n') for x in fh.readlines()]
+        if key in existing_keys:
+            return
+        if comment:
+            print(f'# {comment}', file=fh)
+        print(key, file=fh)
+    sftp.close()
+    transport.close()
+    client.close()
+
+
+def read_key(key_path):
+    with open(key_path) as fh:
+        rows = [x.strip('\n') for x in fh.readlines()]
+        comment = rows[1].split('"')[1]
+        key = ''.join(rows[2:-1])
+        return f'ssh-rsa {key} {comment}'
 
 
 class RejectKeyPolicy(paramiko.client.MissingHostKeyPolicy):

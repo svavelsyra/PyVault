@@ -40,7 +40,7 @@ __title__ = "acid_vault"
 __summary__ = "Python Password Vault"
 __uri__ = "https://github.com/svavelsyra/PyVault"
 
-__version__ = "1.3.2"
+__version__ = "2.0.1"
 
 if base_dir is not None and os.path.exists(os.path.join(base_dir, ".commit")):
     with open(os.path.join(base_dir, ".commit")) as fp:
@@ -53,3 +53,24 @@ __email__ = "acid_vault@h2so4.se"
 
 __license__ = "GNU Affero General Public License v3"
 __copyright__ = "2020 %s" % __author__
+
+
+def same_minor_version(version1, version2=None):
+    version2 = version2 or __version__
+    try:
+        version1 = version1.split('.')
+        version2 = version2.split('.')
+        return version1[0] == version2[0] and version1[1] == version2[1]
+    except Exception as err:
+        print(err)
+
+
+def is_greater_version(version1, version2):
+    if not (version2):
+        return True
+    v1 = [int(x) for x in version1.split('.')]
+    v2 = [int(x) for x in version2.split('.')]
+    return (
+        v1[0] > v2[0] or
+        (v1[0] == v2[0] and v1[1] > v2[1]) or
+        (v1[0] == v2[0] and v1[1] == v2[1] and v1[2] > v2[2]))
