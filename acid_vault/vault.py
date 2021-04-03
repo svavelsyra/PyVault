@@ -99,6 +99,7 @@ class Vault():
             return
         if not version.is_greater_version(VERSION, self.data.get('version')):
             return
+        # Save status of lock so we know if we should lock again.
         lock_status = self.locked
         if lock_status:
             self.unlock(password)
