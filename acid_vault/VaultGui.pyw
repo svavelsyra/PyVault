@@ -37,6 +37,7 @@ try:
     from vault import Vault
     from vault import VaultError
     import widgets
+    # import acid_vault.widgets as widgets
 except ImportError as err:
     tkinter.messagebox.showerror('Failed to import', err)
     raise
@@ -75,6 +76,7 @@ class GUI():
 
         password.bind('<Return>', self.on_return_key)
         # Activity sensor.
+        print(dir(widgets.Timer))
         timer = widgets.Timer(self.master, self.lock, 5000*60, True)
         master.bind_all('<Enter>', timer.reset)
 

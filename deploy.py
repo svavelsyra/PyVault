@@ -7,26 +7,40 @@ from acid_vault.version import __version__
 
 
 def tox():
-    p = subprocess.Popen(['tox'])
+    p = subprocess.Popen(['tox'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p.wait()
+    print(p.stdout.readlines())
+    print(p.stderr.readlines())
+    print('Tests completed')
     return p.returncode
 
 
 def clean():
     for filename in os.listdir('dist'):
         os.remove(os.path.join('dist', filename))
+    print('Cleaned')
     return 0
 
 
 def build():
-    p = subprocess.Popen([sys.executable, 'setup.py', 'sdist', 'bdist_wheel'])
+    p = subprocess.Popen([sys.executable, 'setup.py', 'sdist', 'bdist_wheel'],
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
     p.wait()
+    print(p.stdout.readlines())
+    print(p.stderr.readlines())
+    print('Building')
     return p.returncode
 
 
 def upload():
-    p = subprocess.Popen(['twine', 'upload', '-r', 'pypi', 'dist/*'])
+    p = subprocess.Popen(['twine', 'upload', '-r', 'pypi', 'dist/*'],
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
     p.wait()
+    print(p.stdout.readlines())
+    print(p.stderr.readlines())
+    print('Upload completed')
     return p.returncode
 
 
@@ -39,8 +53,13 @@ def build_win():
                           '--add-data',
                           'install data;install data',
                           '--distpath',
-                          'win_installers'])
+                          'win_installers'],
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
     p.wait()
+    print(p.stdout.readlines())
+    print(p.stderr.readlines())
+    print('Windows installer built completed')
     return p.returncode
 
 
@@ -62,16 +81,17 @@ if __name__ == '__main__':
     if not [x for x in 'bctuw' if getattr(args, x)]:
         # No run flags set, set default to run all.
         # -f is excluded in check.
-        [setattr(args, x) for x in 'btcuw']
+        # [setattr(args, x, True) for x in 't']
+        [setattr(args, x, True) for x in 'cbuw']
     result = 0
     for flag, step in (('t', tox),
                        ('c', clean),
                        ('b', build),
                        ('u', upload),
                        ('w', build_win)):
-
         if getattr(args, flag):
             result = step() or result
-            if result or not args.f:
+            if result and not args.f:
                 exit(result)
+    print(result)
     exit(result)
