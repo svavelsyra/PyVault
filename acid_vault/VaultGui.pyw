@@ -76,7 +76,6 @@ class GUI():
 
         password.bind('<Return>', self.on_return_key)
         # Activity sensor.
-        print(dir(widgets.Timer))
         timer = widgets.Timer(self.master, self.lock, 5000*60, True)
         master.bind_all('<Enter>', timer.reset)
 

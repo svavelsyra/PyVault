@@ -175,7 +175,7 @@ class AddPassword(Dialog):
                   self.username.get(),
                   self.password.get(),
                   self.notes.get())
-        if self.initial_data and len(self.inital_data) == len(result):
+        if self.initial_data and len(self.initial_data) == len(result):
             if [index for index in range(2, 6) if
                     result[index] != self.initial_data[index]]:
                 self.result = result
