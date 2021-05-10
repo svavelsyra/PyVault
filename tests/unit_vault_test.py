@@ -1,5 +1,5 @@
 import pickle
-
+import os
 from tests.fixtures import *
 import acid_vault.vault as vault
 

@@ -29,7 +29,9 @@ __all__ = [
     "__copyright__",
 ]
 
-
+'''
+V.2.0.2 - UI no longer lock on OK in edit password
+'''
 try:
     base_dir = os.path.dirname(os.path.abspath(__file__))
 except NameError:
@@ -40,7 +42,7 @@ __title__ = "acid_vault"
 __summary__ = "Python Password Vault"
 __uri__ = "https://github.com/svavelsyra/PyVault"
 
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 
 if base_dir is not None and os.path.exists(os.path.join(base_dir, ".commit")):
     with open(os.path.join(base_dir, ".commit")) as fp:

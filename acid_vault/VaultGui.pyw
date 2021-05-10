@@ -37,6 +37,7 @@ try:
     from vault import Vault
     from vault import VaultError
     import widgets
+    # import acid_vault.widgets as widgets
 except ImportError as err:
     tkinter.messagebox.showerror('Failed to import', err)
     raise
