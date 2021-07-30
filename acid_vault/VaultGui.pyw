@@ -19,7 +19,7 @@
 '''
 Graphical User Interface towards password vault.
 '''
-from version import __version__, same_minor_version
+from vault.helpers.version import __version__, same_minor_version
 try:
     import datetime
     import time
@@ -32,12 +32,12 @@ try:
     import tkinter.ttk
     import uuid
 
-    import constants
-    import legacy_load
-    from vault import Vault
-    from vault import VaultError
-    import widgets
-    # import acid_vault.widgets as widgets
+    from vault.helpers import constants
+    from vault.helpers import legacy_load
+    from vault.vault import Vault
+    from vault.vault import VaultError
+    from vault.widgets import widgets
+
 except ImportError as err:
     tkinter.messagebox.showerror('Failed to import', err)
     raise

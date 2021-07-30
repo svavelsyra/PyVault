@@ -33,9 +33,9 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-import ssh
-import steganography
-import version
+from .helpers import ssh
+from .helpers import steganography
+from .helpers import version
 
 VERSION = '1.0.0'
 VALID_PASSWORD_TYPES = ('alpha',

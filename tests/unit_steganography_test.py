@@ -3,8 +3,8 @@ import PIL
 import pytest
 
 from tests.fixtures import *
-import acid_vault.steganography as steganography
-from acid_vault.steganography import SteganographyError
+import acid_vault.vault.helpers.steganography as steganography
+from acid_vault.vault.helpers.steganography import SteganographyError
 
 def test_write(tmpdir):
     expected = 'ce91ce323ab4c03f705bc37c5071af1c'

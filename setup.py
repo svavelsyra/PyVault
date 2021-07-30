@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 meta_data = {}
-with open('acid_vault/version.py') as fh:
+with open('acid_vault/vault/helpers/version.py') as fh:
     exec(fh.read(), meta_data)
 
 setuptools.setup(

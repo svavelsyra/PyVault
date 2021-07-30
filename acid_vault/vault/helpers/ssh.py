@@ -23,7 +23,7 @@ import paramiko
 import tempfile
 import tkinter.messagebox
 
-import constants
+from . import constants
 
 LOCK_PATH = r'.lock/vault.lock'
 

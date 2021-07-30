@@ -26,10 +26,10 @@ import tkinter
 import urllib.request
 import uuid
 
-from version import __version__, __author__, __email__  # noqa:F401,E501 These are actually used
-from version import __license__, __uri__, __summary__  # noqa:F401,E501 These are actually used
-from vault import generate_password
-from vault import VALID_PASSWORD_TYPES
+from ..helpers.version import __version__, __author__, __email__  # noqa:F401,E501 These are actually used
+from ..helpers.version import __license__, __uri__, __summary__  # noqa:F401,E501 These are actually used
+from ..vault import generate_password
+from ..vault import VALID_PASSWORD_TYPES
 
 
 class Dialog(tkinter.Toplevel):

@@ -30,7 +30,8 @@ __all__ = [
 ]
 
 '''
-V.2.0.2 - UI no longer lock on OK in edit password
+V.2.0.2 - UI no longer lock on OK in edit password.
+V.2.0.3 - Fixed project structure to make tests work again.
 '''
 try:
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +43,7 @@ __title__ = "acid_vault"
 __summary__ = "Python Password Vault"
 __uri__ = "https://github.com/svavelsyra/PyVault"
 
-__version__ = "2.0.2"
+__version__ = "2.0.3"
 
 if base_dir is not None and os.path.exists(os.path.join(base_dir, ".commit")):
     with open(os.path.join(base_dir, ".commit")) as fp:
