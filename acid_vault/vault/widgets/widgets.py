@@ -384,10 +384,6 @@ class Timer():
         """Stop timer."""
         self.timer and self.master.after_cancel(self.timer)
 
-    def start(self):
-        """Start timer, only used after it has been stoped."""
-        self.timer = self.master.after(self.after, self._trigger)
-
 
 def check_version(name):
     '''Checks current version for package on pypi'''
