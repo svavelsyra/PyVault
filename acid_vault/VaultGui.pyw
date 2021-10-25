@@ -151,6 +151,10 @@ class GUI():
                 'Unsaved passwords exists, quit anyway?'):
             return
         try:
+            self.passbox.clear_clipboard()
+        except Exception:
+            pass
+        try:
             ssh_config = self.ssh_config
             file_config = self.file_config
             # Clearing SSH-Password if set
@@ -431,10 +435,12 @@ class GUI():
 class PasswordBox(tkinter.ttk.Treeview):
     """Class to display password list."""
     def __init__(self, master):
-        columns = ('Uid', 'Date', 'System', 'User Name', 'Password', 'Notes')
+        self.columns = ('Uid', 'Date', 'System', 'User Name', 'Password', 'Notes')
         self.f = tkinter.Frame(master)
+        self.pw = None
+        self.timer = False
         super().__init__(self.f,
-                         columns=columns,
+                         columns=self.columns,
                          displaycolumns=('System', 'User Name'),
                          show='headings')
         super().pack(fill=tkinter.BOTH, expand=1, side='left')
@@ -442,9 +448,10 @@ class PasswordBox(tkinter.ttk.Treeview):
             self.f, orient="vertical", command=self.yview)
         sb.pack(side='right', fill=tkinter.Y)
         self.configure(yscrollcommand=sb.set)
-        for name in columns:
+        for name in self.columns:
             self.heading(name, text=name)
         self.bind('<ButtonPress-1>', self.on_click)
+        self.bind('<ButtonPress-3>', self.on_right_click)
         self.dirty = tkinter.BooleanVar()
         self.dirty.set(False)
 
@@ -463,6 +470,24 @@ class PasswordBox(tkinter.ttk.Treeview):
         self.dirty.set(False)
         if children:
             self.delete(*children)
+
+    def clear_clipboard(self):
+        try:
+            clipboard = self.clipboard_get()
+        except tkinter.TclError:
+            # Clipboard empty
+            pass
+        else:
+            if self.pw in clipboard:
+                self.clipboard_clear()
+        finally:
+            self.pw = None
+
+    def set_clipboard_timer(self):
+        if self.timer:
+            self.timer.reset()
+        else:
+            self.timer = widgets.Timer(self, self.clear_clipboard, 5000*60, False)
 
     def add(self, password=None):
         """Add new password to password list."""
@@ -493,10 +518,23 @@ class PasswordBox(tkinter.ttk.Treeview):
 
     def on_click(self, event):
         """Open Edit dialog on click."""
+        row = self.get_row(event)
+        if row:
+            self.edit(row)
+
+    def on_right_click(self, event):
+        row = self.get_row(event)
+        if row:
+            self.pw = self.item(row, 'values')[self.columns.index('Password')]
+            self.clipboard_clear()
+            self.clipboard_append(self.pw)
+            self.set_clipboard_timer()
+
+    def get_row(self, event):
         region = self.identify("region", event.x, event.y)
         if region == 'heading':
             return
-        self.edit(self.identify_row(event.y))
+        return self.identify_row(event.y)
 
 
 if __name__ == '__main__':
