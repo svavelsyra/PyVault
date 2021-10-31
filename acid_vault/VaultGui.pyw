@@ -52,6 +52,7 @@ class GUI():
         self.title = 'PyVault'
         self.master.title(self.title)
         self.vault = None
+        self.vaults = {}
         self.ssh_config = {}
         self.file_config = {}
         self.last_update = False
@@ -166,8 +167,8 @@ class GUI():
                    'widgets': {'file_location': self.file_location.get()},
                    'version': '1.0.0'}
             path = os.path.join(constants.data_dir(), '.vault')
-            with open(path, 'wb') as fh:
-                pickle.dump(obj, fh)
+            #with open(path, 'wb') as fh:
+            #    pickle.dump(obj, fh)
         except Exception as err:
             print(err)
         finally:
@@ -179,15 +180,17 @@ class GUI():
             path = os.path.join(constants.data_dir(), '.vault')
             with open(path, 'rb') as fh:
                 obj = pickle.load(fh)
-            if not same_minor_version(obj.get('version'), '1.0.0'):
+            if not same_minor_version(obj.get('version'), '2.0.0'):
                 obj = legacy_load.legacy_load(obj)
-            for key, value in obj['widgets'].items():
+            profile = obj.get('profiles', {}).get(obj.get('last_profile', ''), '')
+            for key, value in profile['widgets'].items():
                 try:
                     getattr(self, key).set(value)
                 except Exception as err:
                     print(err)
-            for key, value in obj['attributes'].items():
+            for key, value in profile['attributes'].items():
                 setattr(self, key, value)
+            self.last_update = obj.get('last_update', False)
             now = datetime.datetime.now()
             t_delta = datetime.timedelta(days=7)
             if not self.last_update or now - self.last_update > t_delta:
