@@ -118,12 +118,63 @@ class Dialog(tkinter.Toplevel):
         pass
 
 
+class EditProfiles(Dialog):
+    """Dialog to edit profiles."""
+    def body(self, master, initial_data):
+        self.profiles = []
+        self.top = tkinter.Frame(master)
+        bottom = tkinter.Frame(master)
+        for profile in sorted(initial_data):
+            self.add(profile)
+        tkinter.Button(bottom, command=self.add, text='Add').pack()
+        self.top.pack()
+        bottom.pack()
+
+    def remove(self, item):
+        self.profiles.pop(item)
+        item.destroy()
+
+    def add(self, data=''):
+        f = tkinter.Frame(self.top)
+        entry_data = tkinter.StringVar()
+        entry_data.set(data)
+        f.entry_data = entry_data
+        f.original_value = data
+        e = tkinter.Entry(f, textvariable=entry_data)
+        b = tkinter.Button(f, text='Remove', command=lambda f=f: remove(f))
+        f.pack(side='top')
+        e.pack(side='left')
+        b.pack(side='left')
+        self.profiles.append(f)
+
+    def validate(self):
+        found = []
+        for profile in self.profiles:
+            data = profile.entry_data.get()
+            if not data:
+                continue
+            elif data in found:
+                return False
+            found.append(data)
+        return True
+
+    def apply(self):
+        result = {}
+        for profile in self.profiles:
+            new_val = profile.entry_data.get()
+            old_val = profile.original_value
+            if new_val:
+                result[new_val] = old_val
+        self.result = result
+        
+            
+
 class AddPassword(Dialog):
     '''Add/Edit password dialog.'''
     def body(self, master, initial_data):
+        """Body of set key dialog."""
         self.timer = Timer(master, self.close, 5000*60)
         master.bind_all('<Enter>', self.timer.reset)
-        """Body of set key dialog."""
         self.initial_data = initial_data
         if initial_data and len(initial_data) == 6:
             self.uid = uuid.UUID(initial_data[0])

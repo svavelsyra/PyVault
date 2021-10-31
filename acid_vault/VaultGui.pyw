@@ -69,6 +69,7 @@ class GUI():
         bottom.pack(side='top', fill=tkinter.X)
 
         self.password = tkinter.StringVar()
+        self.profiles = {}
         self._password = None
         password = widgets.LabelEntry(top,
                                       label='Master Password',
@@ -95,6 +96,8 @@ class GUI():
                                     state=tkinter.DISABLED)
         add_pass = tkinter.Button(
             bottom, command=self.add_password, text='Add Password')
+        edit_profiles = widgets.Box(
+            top, 'Button', command=self.edit_profiles, text='Edit Profiles')
 
         # Option menues
         self.file_location = tkinter.StringVar()
@@ -102,6 +105,10 @@ class GUI():
         file_location = tkinter.OptionMenu(
             top, self.file_location, 'Local', 'Remote')
         file_location.configure(width=15)
+        self.profile = tkinter.StringVar()
+        self.profile_selector = tkinter.OptionMenu(
+            top, self.profile, 'placeholder', command=self.change_profile)
+        self.profile_selector.configure(width=15)
 
         # Menu bar
         menubar = tkinter.Menu(master, tearoff=0)
@@ -136,6 +143,8 @@ class GUI():
         get_pass.pack(side='left', fill=tkinter.Y)
         save_pass.pack(side='left', fill=tkinter.Y)
         self.lock_btn.pack(side='left', fill=tkinter.Y)
+        edit_profiles.pack(side='left', fill=tkinter.Y)
+        self.profile_selector.pack(side='right', fill=tkinter.Y)
         file_location.pack(side='right', fill=tkinter.Y)
         add_pass.pack()
         self.onstart()
@@ -152,23 +161,15 @@ class GUI():
                 'Unsaved passwords exists, quit anyway?'):
             return
         try:
-            ssh_config = self.ssh_config
-            file_config = self.file_config
-            # Clearing SSH-Password if set
-            if ssh_config:
-                ssh_config['password'] = ''
-            if ssh_config and ssh_config.get('clear_on_exit'):
-                ssh_config = {}
-            if file_config and file_config.get('clear_on_exit'):
-                file_config = {}
-            obj = {'attributes': {'ssh_config': ssh_config,
-                                  'file_config': file_config,
-                                  'last_update': self.last_update},
-                   'widgets': {'file_location': self.file_location.get()},
-                   'version': '1.0.0'}
+            current_profile = self.profile.get()
+            self.save_profile(current_profile)
+            obj = {'profiles': self.profiles,
+                   'version': '2.0.0',
+                   'last_profile': current_profile,
+                   'last_update': self.last_update}
             path = os.path.join(constants.data_dir(), '.vault')
-            #with open(path, 'wb') as fh:
-            #    pickle.dump(obj, fh)
+            with open(path, 'wb') as fh:
+                pickle.dump(obj, fh)
         except Exception as err:
             print(err)
         finally:
@@ -182,14 +183,7 @@ class GUI():
                 obj = pickle.load(fh)
             if not same_minor_version(obj.get('version'), '2.0.0'):
                 obj = legacy_load.legacy_load(obj)
-            profile = obj.get('profiles', {}).get(obj.get('last_profile', ''), '')
-            for key, value in profile['widgets'].items():
-                try:
-                    getattr(self, key).set(value)
-                except Exception as err:
-                    print(err)
-            for key, value in profile['attributes'].items():
-                setattr(self, key, value)
+            self.profile.set(self.load_profile())
             self.last_update = obj.get('last_update', False)
             now = datetime.datetime.now()
             t_delta = datetime.timedelta(days=7)
@@ -197,9 +191,64 @@ class GUI():
                 self.last_update = now
                 if widgets.check_version('acid_vault') != __version__:
                     self.status.set('New version avaliable at pypi', 'green')
-
         except Exception as err:
             print(err)
+
+    def edit_profiles(self, *args, **kwargs):
+        edit_profiles = widgets.EditProfiles(
+            self.master, 'Edit Profiles', self.profiles.keys())
+        print(edit_profiles.result)
+        # Canceled
+        if edit_profiles.result is None:
+            return
+        for key in edit_profiles.result:
+            if key in self.profiles:
+                pass
+
+    def change_profile(self, key):
+        self.profile.set(key)
+        self.load_profile(key)
+
+    def load_profile(self, profile_name=''):
+        if not self.profiles:
+            path = os.path.join(constants.data_dir(), '.vault')
+            with open(path, 'rb') as fh:
+                obj = pickle.load(fh)
+            if not same_minor_version(obj.get('version'), '2.0.0'):
+                obj = legacy_load.legacy_load(obj)
+            profile_name = profile_name or obj.get('last_profile', '')
+            self.profiles = obj.get('profiles', {})
+            # Update Profile selector with new options
+            self.profile_selector['menu'].delete(0, tkinter.END)
+            self.profile.set('')
+            for key in self.profiles.keys():
+                self.profile_selector['menu'].add_command(
+                    label=key, command=lambda key=key: self.change_profile(key))
+        profile = self.profiles.get(profile_name, {})
+        for key, value in profile.get('widgets', {}).items():
+            try:
+                getattr(self, key).set(value)
+            except Exception as err:
+                print(err)
+        for key, value in profile.get('attributes', {}).items():
+            setattr(self, key, value)
+        return profile_name if profile else ''
+
+    def save_profile(self, profile_name):
+        ssh_config = self.ssh_config
+        file_config = self.file_config
+        # Clearing SSH-Password if set
+        if ssh_config:
+            ssh_config['password'] = ''
+        if ssh_config and ssh_config.get('clear_on_exit'):
+            ssh_config = {}
+        if file_config and file_config.get('clear_on_exit'):
+            file_config = {}
+        profile = {'attributes': {'ssh_config': ssh_config,
+                                  'file_config': file_config,
+                                  'last_update': self.last_update},
+                   'widgets': {'file_location': self.file_location.get()}}
+        self.profiles[profile_name] = profile
 
     def on_return_key(self, *event):
         '''Called on return stroke bound to master password box.'''
