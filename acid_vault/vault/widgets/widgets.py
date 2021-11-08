@@ -123,16 +123,16 @@ class EditProfiles(Dialog):
     def body(self, master, initial_data):
         self.profiles = []
         self.top = tkinter.Frame(master)
+        middle = tkinter.Frame(master)
         bottom = tkinter.Frame(master)
         for profile in sorted(initial_data):
             self.add(profile)
+        self.status = tkinter.StringVar()
+        tkinter.Label(middle, textvar=self.status).pack(side='left')
         tkinter.Button(bottom, command=self.add, text='Add').pack()
         self.top.pack()
+        middle.pack()
         bottom.pack()
-
-    def remove(self, item):
-        self.profiles.pop(item)
-        item.destroy()
 
     def add(self, data=''):
         f = tkinter.Frame(self.top)
@@ -140,11 +140,12 @@ class EditProfiles(Dialog):
         entry_data.set(data)
         f.entry_data = entry_data
         f.original_value = data
+        f.remove = tkinter.BooleanVar()
         e = tkinter.Entry(f, textvariable=entry_data)
-        b = tkinter.Button(f, text='Remove', command=lambda f=f: remove(f))
+        c = tkinter.Checkbutton(f, text='Remove', variable=f.remove)
         f.pack(side='top')
         e.pack(side='left')
-        b.pack(side='left')
+        c.pack(side='left')
         self.profiles.append(f)
 
     def validate(self):
@@ -152,20 +153,29 @@ class EditProfiles(Dialog):
         for profile in self.profiles:
             data = profile.entry_data.get()
             if not data:
-                continue
+                self.status.set('Empty profile names detected!')
+                return False
             elif data in found:
+                self.status.set('Duplicate profile name detected!')
                 return False
             found.append(data)
         return True
 
     def apply(self):
-        result = {}
+        rename = {}
+        keep = []
         for profile in self.profiles:
+            if profile.remove.get():
+                continue
             new_val = profile.entry_data.get()
             old_val = profile.original_value
-            if new_val:
-                result[new_val] = old_val
-        self.result = result
+            if old_val and new_val != old_val:
+                rename[old_val] = new_val
+            elif new_val:
+                keep.append(new_val)
+        self.result = {'rename': rename,
+                       'keep': keep,
+                       }
         
             
 

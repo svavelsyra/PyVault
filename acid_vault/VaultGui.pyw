@@ -194,20 +194,57 @@ class GUI():
         except Exception as err:
             print(err)
 
+    def set_vault(self, key):
+        if not key:
+            self.vault = None
+        else:
+            self.vault = self.vaults.get(key, None)
+            
     def edit_profiles(self, *args, **kwargs):
         edit_profiles = widgets.EditProfiles(
             self.master, 'Edit Profiles', self.profiles.keys())
-        print(edit_profiles.result)
         # Canceled
         if edit_profiles.result is None:
             return
-        for key in edit_profiles.result:
-            if key in self.profiles:
-                pass
+        vaults = {}
+        profiles = {}
+        rename = edit_profiles.result['rename']
+        for old_name in rename:
+            new_name = rename[old_name]
+            profiles[new_name] = self.profiles.get(old_name, {})
+            vaults[new_name] = self.vaults.get(old_name, None)
+        for key in edit_profiles.result['keep']:
+            profiles[key] = self.profiles.get(key, {})
+            vaults[key] = self.vaults.get(key, None)
+
+        current = self.profile.get()
+        profile_name = (rename.get(current) or
+                        (current in self.profiles.keys() and current) or
+                        '')
+        self.update_profile_selector(profile_name)
+        self.change_profile(profile_name)
+
+    def update_profile_selector(self, profile_name=''):
+        self.profile_selector['menu'].delete(0, tkinter.END)
+        for key in sorted(self.profiles.keys()):
+            self.profile_selector['menu'].add_command(
+                label=key, command=lambda key=key: self.change_profile(key))
+        self.profile.set(profile_name)
 
     def change_profile(self, key):
         self.profile.set(key)
+        # Save old config.
+        self.save_profile(key)
+        self.lock()
+        # Load the new config.
         self.load_profile(key)
+
+    def clear_profile(self):
+        profile = self.profiles.get(self.profile.get(), {})
+        for key in profile.get('widgets'):
+            getattr(self, key).set('')
+        for key in profile.get('attributes', {}):
+            setattr(self, key, '')
 
     def load_profile(self, profile_name=''):
         if not self.profiles:
@@ -218,12 +255,9 @@ class GUI():
                 obj = legacy_load.legacy_load(obj)
             profile_name = profile_name or obj.get('last_profile', '')
             self.profiles = obj.get('profiles', {})
-            # Update Profile selector with new options
-            self.profile_selector['menu'].delete(0, tkinter.END)
-            self.profile.set('')
-            for key in self.profiles.keys():
-                self.profile_selector['menu'].add_command(
-                    label=key, command=lambda key=key: self.change_profile(key))
+            self.update_profile_selector(profile_name)
+
+        self.clear_profile()
         profile = self.profiles.get(profile_name, {})
         for key, value in profile.get('widgets', {}).items():
             try:
@@ -232,6 +266,8 @@ class GUI():
                 print(err)
         for key, value in profile.get('attributes', {}).items():
             setattr(self, key, value)
+        if profile:
+            self.set_vault(profile_name)
         return profile_name if profile else ''
 
     def save_profile(self, profile_name):
@@ -346,6 +382,7 @@ class GUI():
             try:
                 self.vault = Vault(
                     path, ssh_params, original_file_path, update=update)
+                self.vaults[self.profile.get()] = self.vault
             except Exception as err:
                 self.status.set(err, color='red')
                 return
