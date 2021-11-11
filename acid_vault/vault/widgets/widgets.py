@@ -31,6 +31,22 @@ from ..helpers.version import __license__, __uri__, __summary__  # noqa:F401,E50
 from ..vault import generate_password
 from ..vault import VALID_PASSWORD_TYPES
 
+DEFAULT_PROFILE = {
+            'attributes': {
+                'ssh_config': {
+                    'host': '',
+                    'port': '',
+                    'username': '',
+                    'password': '',
+                    'clear_on_exit': True},
+                'file_config': {
+                    'sync': True,
+                    'file_location': '',
+                    'original_file': '',
+                    'use_steganography': False,
+                    'clear_on_exit': True},
+                'last_update': None},
+            'widgets': {'file_location': 'Local'}}
 
 class Dialog(tkinter.Toplevel):
     """

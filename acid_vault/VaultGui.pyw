@@ -37,8 +37,10 @@ try:
     from vault.vault import Vault
     from vault.vault import VaultError
     from vault.widgets import widgets
+    from vault.widgets.widgets import DEFAULT_PROFILE
 
 except ImportError as err:
+    # Show an graphical error as well as in terminal.
     tkinter.messagebox.showerror('Failed to import', err)
     raise
 
@@ -195,17 +197,21 @@ class GUI():
             print(err)
 
     def set_vault(self, key):
+        """Sets current active vault."""
         if not key:
             self.vault = None
         else:
             self.vault = self.vaults.get(key, None)
             
     def edit_profiles(self, *args, **kwargs):
+        """Edit profile settings"""
         edit_profiles = widgets.EditProfiles(
             self.master, 'Edit Profiles', self.profiles.keys())
         # Canceled
         if edit_profiles.result is None:
             return
+        current = self.profile.get()
+        self.save_profile(current)
         vaults = {}
         profiles = {}
         rename = edit_profiles.result['rename']
@@ -214,10 +220,11 @@ class GUI():
             profiles[new_name] = self.profiles.get(old_name, {})
             vaults[new_name] = self.vaults.get(old_name, None)
         for key in edit_profiles.result['keep']:
-            profiles[key] = self.profiles.get(key, {})
+            profiles[key] = self.profiles.get(key, DEFAULT_PROFILE)
             vaults[key] = self.vaults.get(key, None)
+        self.vaults = vaults
+        self.profiles = profiles
 
-        current = self.profile.get()
         profile_name = (rename.get(current) or
                         (current in self.profiles.keys() and current) or
                         '')
@@ -225,6 +232,7 @@ class GUI():
         self.change_profile(profile_name)
 
     def update_profile_selector(self, profile_name=''):
+        """Update profile selector with new values."""
         self.profile_selector['menu'].delete(0, tkinter.END)
         for key in sorted(self.profiles.keys()):
             self.profile_selector['menu'].add_command(
@@ -232,14 +240,16 @@ class GUI():
         self.profile.set(profile_name)
 
     def change_profile(self, key):
-        self.profile.set(key)
+        """Change profile when profile selector is changed."""
         # Save old config.
-        self.save_profile(key)
+        self.save_profile(self.profile.get())
         self.lock()
         # Load the new config.
-        self.load_profile(key)
+        name = self.load_profile(key)
+        self.profile.set(name)
 
     def clear_profile(self):
+        """Clear settings of current profile."""
         profile = self.profiles.get(self.profile.get(), {})
         for key in profile.get('widgets'):
             getattr(self, key).set('')
@@ -247,6 +257,9 @@ class GUI():
             setattr(self, key, '')
 
     def load_profile(self, profile_name=''):
+        """Load a profile."""
+
+        # On first load
         if not self.profiles:
             path = os.path.join(constants.data_dir(), '.vault')
             with open(path, 'rb') as fh:
@@ -271,6 +284,7 @@ class GUI():
         return profile_name if profile else ''
 
     def save_profile(self, profile_name):
+        """Save profile settings to obj."""
         ssh_config = self.ssh_config
         file_config = self.file_config
         # Clearing SSH-Password if set
