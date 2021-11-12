@@ -15,4 +15,11 @@ def legacy_load(obj):
                     obj['attributes']['ssh_config'][key] = values[index]
                 except IndexError:
                     obj['attributes']['ssh_config'][key] = ''
+    if obj['version'] == '1.0.0':
+        obj['last_update'] = obj.get('attributes', {}).pop('last_update', False)
+        obj['profiles'] = {'profile1':{'attributes': obj.pop('attributes', {}),
+                                       'widgets': obj.pop('widgets', {})
+                                       }}
+        obj['last_profile'] = 'profile1'
+        
     return obj

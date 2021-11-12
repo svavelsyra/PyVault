@@ -37,8 +37,10 @@ try:
     from vault.vault import Vault
     from vault.vault import VaultError
     from vault.widgets import widgets
+    from vault.widgets.widgets import DEFAULT_PROFILE
 
 except ImportError as err:
+    # Show an graphical error as well as in terminal.
     tkinter.messagebox.showerror('Failed to import', err)
     raise
 
@@ -52,6 +54,7 @@ class GUI():
         self.title = 'PyVault'
         self.master.title(self.title)
         self.vault = None
+        self.vaults = {}
         self.ssh_config = {}
         self.file_config = {}
         self.last_update = False
@@ -68,6 +71,7 @@ class GUI():
         bottom.pack(side='top', fill=tkinter.X)
 
         self.password = tkinter.StringVar()
+        self.profiles = {}
         self._password = None
         password = widgets.LabelEntry(top,
                                       label='Master Password',
@@ -94,6 +98,8 @@ class GUI():
                                     state=tkinter.DISABLED)
         add_pass = tkinter.Button(
             bottom, command=self.add_password, text='Add Password')
+        edit_profiles = widgets.Box(
+            top, 'Button', command=self.edit_profiles, text='Edit Profiles')
 
         # Option menues
         self.file_location = tkinter.StringVar()
@@ -101,6 +107,10 @@ class GUI():
         file_location = tkinter.OptionMenu(
             top, self.file_location, 'Local', 'Remote')
         file_location.configure(width=15)
+        self.profile = tkinter.StringVar()
+        self.profile_selector = tkinter.OptionMenu(
+            top, self.profile, 'placeholder', command=self.change_profile)
+        self.profile_selector.configure(width=15)
 
         # Menu bar
         menubar = tkinter.Menu(master, tearoff=0)
@@ -135,6 +145,8 @@ class GUI():
         get_pass.pack(side='left', fill=tkinter.Y)
         save_pass.pack(side='left', fill=tkinter.Y)
         self.lock_btn.pack(side='left', fill=tkinter.Y)
+        edit_profiles.pack(side='left', fill=tkinter.Y)
+        self.profile_selector.pack(side='right', fill=tkinter.Y)
         file_location.pack(side='right', fill=tkinter.Y)
         add_pass.pack()
         self.onstart()
@@ -151,24 +163,12 @@ class GUI():
                 'Unsaved passwords exists, quit anyway?'):
             return
         try:
-            self.passbox.clear_clipboard()
-        except Exception:
-            pass
-        try:
-            ssh_config = self.ssh_config
-            file_config = self.file_config
-            # Clearing SSH-Password if set
-            if ssh_config:
-                ssh_config['password'] = ''
-            if ssh_config and ssh_config.get('clear_on_exit'):
-                ssh_config = {}
-            if file_config and file_config.get('clear_on_exit'):
-                file_config = {}
-            obj = {'attributes': {'ssh_config': ssh_config,
-                                  'file_config': file_config,
-                                  'last_update': self.last_update},
-                   'widgets': {'file_location': self.file_location.get()},
-                   'version': '1.0.0'}
+            current_profile = self.profile.get()
+            self.save_profile(current_profile)
+            obj = {'profiles': self.profiles,
+                   'version': '2.0.0',
+                   'last_profile': current_profile,
+                   'last_update': self.last_update}
             path = os.path.join(constants.data_dir(), '.vault')
             with open(path, 'wb') as fh:
                 pickle.dump(obj, fh)
@@ -183,24 +183,128 @@ class GUI():
             path = os.path.join(constants.data_dir(), '.vault')
             with open(path, 'rb') as fh:
                 obj = pickle.load(fh)
-            if not same_minor_version(obj.get('version'), '1.0.0'):
+            if not same_minor_version(obj.get('version'), '2.0.0'):
                 obj = legacy_load.legacy_load(obj)
-            for key, value in obj['widgets'].items():
-                try:
-                    getattr(self, key).set(value)
-                except Exception as err:
-                    print(err)
-            for key, value in obj['attributes'].items():
-                setattr(self, key, value)
+            self.profile.set(self.load_profile())
+            self.last_update = obj.get('last_update', False)
             now = datetime.datetime.now()
             t_delta = datetime.timedelta(days=7)
             if not self.last_update or now - self.last_update > t_delta:
                 self.last_update = now
                 if widgets.check_version('acid_vault') != __version__:
                     self.status.set('New version avaliable at pypi', 'green')
-
         except Exception as err:
             print(err)
+
+    def set_vault(self, key):
+        """Sets current active vault."""
+        if not key:
+            self.vault = None
+        else:
+            self.vault = self.vaults.get(key, None)
+            
+    def edit_profiles(self, *args, **kwargs):
+        """Edit profile settings"""
+        edit_profiles = widgets.EditProfiles(
+            self.master, 'Edit Profiles', self.profiles.keys())
+        # Canceled
+        if edit_profiles.result is None:
+            return
+        current = self.profile.get()
+        self.save_profile(current)
+        vaults = {}
+        profiles = {}
+        rename = edit_profiles.result['rename']
+        for old_name in rename:
+            new_name = rename[old_name]
+            profiles[new_name] = self.profiles.get(old_name, {})
+            vaults[new_name] = self.vaults.get(old_name, None)
+        for key in edit_profiles.result['keep']:
+            profiles[key] = self.profiles.get(key, DEFAULT_PROFILE)
+            vaults[key] = self.vaults.get(key, None)
+        self.vaults = vaults
+        self.profiles = profiles
+
+        profile_name = (rename.get(current) or
+                        (current in self.profiles.keys() and current) or
+                        '')
+        self.update_profile_selector(profile_name)
+        self.change_profile(profile_name)
+
+    def update_profile_selector(self, profile_name=''):
+        """Update profile selector with new values."""
+        self.profile_selector['menu'].delete(0, tkinter.END)
+        for key in sorted(self.profiles.keys()):
+            self.profile_selector['menu'].add_command(
+                label=key, command=lambda key=key: self.change_profile(key))
+        self.profile.set(profile_name)
+
+    def change_profile(self, key):
+        """Change profile when profile selector is changed."""
+        # Save old config.
+        self.save_profile(self.profile.get())
+        self.lock()
+        # Load the new config.
+        name = self.load_profile(key)
+        self.profile.set(name)
+        if self.vault:
+            self.lock_btn.config(text='Unlock')
+            self.lock_btn.config(state=tkinter.NORMAL)
+        else:
+            self.lock_btn.config(text='Unlock')
+            self.lock_btn.config(state=tkinter.DISABLED)
+
+    def clear_profile(self):
+        """Clear settings of current profile."""
+        profile = self.profiles.get(self.profile.get(), {})
+        for key in profile.get('widgets'):
+            getattr(self, key).set('')
+        for key in profile.get('attributes', {}):
+            setattr(self, key, '')
+
+    def load_profile(self, profile_name=''):
+        """Load a profile."""
+
+        # On first load
+        if not self.profiles:
+            path = os.path.join(constants.data_dir(), '.vault')
+            with open(path, 'rb') as fh:
+                obj = pickle.load(fh)
+            if not same_minor_version(obj.get('version'), '2.0.0'):
+                obj = legacy_load.legacy_load(obj)
+            profile_name = profile_name or obj.get('last_profile', '')
+            self.profiles = obj.get('profiles', {})
+            self.update_profile_selector(profile_name)
+
+        self.clear_profile()
+        profile = self.profiles.get(profile_name, {})
+        for key, value in profile.get('widgets', {}).items():
+            try:
+                getattr(self, key).set(value)
+            except Exception as err:
+                print(err)
+        for key, value in profile.get('attributes', {}).items():
+            setattr(self, key, value)
+        if profile:
+            self.set_vault(profile_name)
+        return profile_name if profile else ''
+
+    def save_profile(self, profile_name):
+        """Save profile settings to obj."""
+        ssh_config = self.ssh_config
+        file_config = self.file_config
+        # Clearing SSH-Password if set
+        if ssh_config:
+            ssh_config['password'] = ''
+        if ssh_config and ssh_config.get('clear_on_exit'):
+            ssh_config = {}
+        if file_config and file_config.get('clear_on_exit'):
+            file_config = {}
+        profile = {'attributes': {'ssh_config': ssh_config,
+                                  'file_config': file_config,
+                                  'last_update': self.last_update},
+                   'widgets': {'file_location': self.file_location.get()}}
+        self.profiles[profile_name] = profile
 
     def on_return_key(self, *event):
         '''Called on return stroke bound to master password box.'''
@@ -272,11 +376,11 @@ class GUI():
     def get_params(self, path=None):
         ssh_params = None
         if not path:
-            path = self.file_config['file_location']
+            path = self.file_config.get('file_location', '')
             ssh_params = (self.file_location.get() == 'Remote' and
                           self.ssh_config)
         original_file_path = (self.file_config.get('use_steganography') and
-                              self.file_config['original_file'])
+                              self.file_config.get('original_file'))
         return path, ssh_params, original_file_path
 
     def load(self, path=None):
@@ -286,8 +390,10 @@ class GUI():
         update = not path
         if not self.verify():
             return
-        self.status.set('Aquiring file lock')
-        self.file_lock.acquire()
+        get_lock = self.file_location.get() == 'Remote'
+        if get_lock:
+            self.status.set('Aquiring file lock')
+            self.file_lock.acquire()
         try:
             path, ssh_params, original_file_path = self.get_params(path)
             if not path:
@@ -298,34 +404,38 @@ class GUI():
             try:
                 self.vault = Vault(
                     path, ssh_params, original_file_path, update=update)
+                self.vaults[self.profile.get()] = self.vault
             except Exception as err:
                 self.status.set(err, color='red')
                 return
             self.status.set('Passwords successfully loaded')
             self.update_password_box()
         finally:
-            self.file_lock.release()
+            if get_lock:
+                self.file_lock.release()
 
     def save(self, path=None):
         """Lock and save vault in to file."""
-        self.status.set('Acquiring file lock')
-        self.file_lock.acquire()
+        get_lock = self.file_location.get() == 'Remote'
+        if get_lock:
+            self.status.set('Acquiring file lock')
+            self.file_lock.acquire()
         try:
             if not self.verify():
                 return
+            if not self.vault:
+                self.vault = Vault()
             # Cannot do self.vault.update = not path here due
             # to that its not all cases where it holds.
             if not path:
                 self.vault.update = True
-            path, ssh_params, original_file_path = self.get_params()
+            path, ssh_params, original_file_path = self.get_params(path)
             if not path:
                 self.status.set('Empty path, aborting', color='red')
                 return
             self._password = self.password.get()
             self.status.set(f'Saving passwords to {path} this may take '
                             'a while...')
-            if not self.vault:
-                self.vault = Vault()
             objects = [self.passbox.item(x, 'values') for x in
                        self.passbox.get_children()]
             self.vault.set_objects(objects)
@@ -335,7 +445,8 @@ class GUI():
             self.passbox.dirty.set(False)
             self.status.set('Passwords saved')
         finally:
-            self.file_lock.release()
+            if get_lock:
+                self.file_lock.release()
 
     def save_clear(self, file_path):
         '''Make a dump of all password as a clear text file.'''

@@ -31,6 +31,22 @@ from ..helpers.version import __license__, __uri__, __summary__  # noqa:F401,E50
 from ..vault import generate_password
 from ..vault import VALID_PASSWORD_TYPES
 
+DEFAULT_PROFILE = {
+            'attributes': {
+                'ssh_config': {
+                    'host': '',
+                    'port': '',
+                    'username': '',
+                    'password': '',
+                    'clear_on_exit': True},
+                'file_config': {
+                    'sync': True,
+                    'file_location': '',
+                    'original_file': '',
+                    'use_steganography': False,
+                    'clear_on_exit': True},
+                'last_update': None},
+            'widgets': {'file_location': 'Local'}}
 
 class Dialog(tkinter.Toplevel):
     """
@@ -118,12 +134,73 @@ class Dialog(tkinter.Toplevel):
         pass
 
 
+class EditProfiles(Dialog):
+    """Dialog to edit profiles."""
+    def body(self, master, initial_data):
+        self.profiles = []
+        self.top = tkinter.Frame(master)
+        middle = tkinter.Frame(master)
+        bottom = tkinter.Frame(master)
+        for profile in sorted(initial_data):
+            self.add(profile)
+        self.status = tkinter.StringVar()
+        tkinter.Label(middle, textvar=self.status).pack(side='left')
+        tkinter.Button(bottom, command=self.add, text='Add').pack()
+        self.top.pack()
+        middle.pack()
+        bottom.pack()
+
+    def add(self, data=''):
+        f = tkinter.Frame(self.top)
+        entry_data = tkinter.StringVar()
+        entry_data.set(data)
+        f.entry_data = entry_data
+        f.original_value = data
+        f.remove = tkinter.BooleanVar()
+        e = tkinter.Entry(f, textvariable=entry_data)
+        c = tkinter.Checkbutton(f, text='Remove', variable=f.remove)
+        f.pack(side='top')
+        e.pack(side='left')
+        c.pack(side='left')
+        self.profiles.append(f)
+
+    def validate(self):
+        found = []
+        for profile in self.profiles:
+            data = profile.entry_data.get()
+            if not data:
+                self.status.set('Empty profile names detected!')
+                return False
+            elif data in found:
+                self.status.set('Duplicate profile name detected!')
+                return False
+            found.append(data)
+        return True
+
+    def apply(self):
+        rename = {}
+        keep = []
+        for profile in self.profiles:
+            if profile.remove.get():
+                continue
+            new_val = profile.entry_data.get()
+            old_val = profile.original_value
+            if old_val and new_val != old_val:
+                rename[old_val] = new_val
+            elif new_val:
+                keep.append(new_val)
+        self.result = {'rename': rename,
+                       'keep': keep,
+                       }
+        
+            
+
 class AddPassword(Dialog):
     '''Add/Edit password dialog.'''
     def body(self, master, initial_data):
+        """Body of set key dialog."""
         self.timer = Timer(master, self.close, 5000*60)
         master.bind_all('<Enter>', self.timer.reset)
-        """Body of set key dialog."""
         self.initial_data = initial_data
         if initial_data and len(initial_data) == 6:
             self.uid = uuid.UUID(initial_data[0])

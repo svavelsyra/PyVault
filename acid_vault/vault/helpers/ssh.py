@@ -64,7 +64,7 @@ class RemoteFile():
         self.sftp = None
         self.stat = None
         self.lock = None
-        self.lock_script_path = '/tmp/lock_script.cmd'
+        self.lock_script_path = '/tmp/lock_script_v1.0.0.cmd'
         self.fh = self._open(*args, **kwargs)
 
     def __enter__(self):
@@ -132,16 +132,21 @@ class RemoteFile():
         if self.stat:
             self.sftp.utime(self.filepath, (self.stat.st_atime,
                                             self.stat.st_mtime))
-        for con in ('fh', 'sftp', 'ssh'):
-            try:
-                getattr(self, con).close()
-            except Exception:
-                pass
+        try:
+            self.fh.close()
+        except Exception:
+            pass
         if self.lock:
             try:
                 self.lock.write('quit')
             except Exception as error:
                 print(f'Failed to close lock: {error}')
+        for con in ('sftp', 'ssh'):
+            try:
+                getattr(self, con).close()
+            except Exception:
+                pass
+
 
     def _open(self, mode='r', *args, timeout=15, **kwargs):
         """Open remote path."""
@@ -176,12 +181,14 @@ class RemoteFile():
         except (IOError, FileNotFoundError):
             fh, file_path = tempfile.mkstemp(text=True)
             with self.sftp.open(self.lock_script_path, 'w') as fh:
-                print('#!/bin/sh\n'
+                print('#!/bin/bash\n'
                       'echo "OK"\n'
-                      'INPUT=init\n'
-                      'while [ "$INPUT" != "quit" ]\n'
+                      "INPUT='start'\n"
+                      'START=$(date +%s)\n'
+                      'while [ "$INPUT" != \'quit\' ] && (( $(date +%s) - $START > 60 ))\n'
                       '    do\n'
                       '        read INPUT\n'
+                      '        sleep 0.5\n'
                       '    done\n',
                       file=fh)
             self.ssh.exec_command(f'chmod +x {self.lock_script_path}')
