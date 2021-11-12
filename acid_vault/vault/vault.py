@@ -88,6 +88,7 @@ class Vault():
                     raise VaultError('Could not aquire lock')
                 return call(fh, path_to_orginal)
         else:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, mode) as fh:
                 return call(fh, path_to_orginal)
 

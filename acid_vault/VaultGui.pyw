@@ -247,6 +247,12 @@ class GUI():
         # Load the new config.
         name = self.load_profile(key)
         self.profile.set(name)
+        if self.vault:
+            self.lock_btn.config(text='Unlock')
+            self.lock_btn.config(state=tkinter.NORMAL)
+        else:
+            self.lock_btn.config(text='Unlock')
+            self.lock_btn.config(state=tkinter.DISABLED)
 
     def clear_profile(self):
         """Clear settings of current profile."""
@@ -370,11 +376,11 @@ class GUI():
     def get_params(self, path=None):
         ssh_params = None
         if not path:
-            path = self.file_config['file_location']
+            path = self.file_config.get('file_location', '')
             ssh_params = (self.file_location.get() == 'Remote' and
                           self.ssh_config)
         original_file_path = (self.file_config.get('use_steganography') and
-                              self.file_config['original_file'])
+                              self.file_config.get('original_file'))
         return path, ssh_params, original_file_path
 
     def load(self, path=None):
@@ -384,8 +390,10 @@ class GUI():
         update = not path
         if not self.verify():
             return
-        self.status.set('Aquiring file lock')
-        self.file_lock.acquire()
+        get_lock = self.file_location.get() == 'Remote'
+        if get_lock:
+            self.status.set('Aquiring file lock')
+            self.file_lock.acquire()
         try:
             path, ssh_params, original_file_path = self.get_params(path)
             if not path:
@@ -403,28 +411,31 @@ class GUI():
             self.status.set('Passwords successfully loaded')
             self.update_password_box()
         finally:
-            self.file_lock.release()
+            if get_lock:
+                self.file_lock.release()
 
     def save(self, path=None):
         """Lock and save vault in to file."""
-        self.status.set('Acquiring file lock')
-        self.file_lock.acquire()
+        get_lock = self.file_location.get() == 'Remote'
+        if get_lock:
+            self.status.set('Acquiring file lock')
+            self.file_lock.acquire()
         try:
             if not self.verify():
                 return
+            if not self.vault:
+                self.vault = Vault()
             # Cannot do self.vault.update = not path here due
             # to that its not all cases where it holds.
             if not path:
                 self.vault.update = True
-            path, ssh_params, original_file_path = self.get_params()
+            path, ssh_params, original_file_path = self.get_params(path)
             if not path:
                 self.status.set('Empty path, aborting', color='red')
                 return
             self._password = self.password.get()
             self.status.set(f'Saving passwords to {path} this may take '
                             'a while...')
-            if not self.vault:
-                self.vault = Vault()
             objects = [self.passbox.item(x, 'values') for x in
                        self.passbox.get_children()]
             self.vault.set_objects(objects)
@@ -434,7 +445,8 @@ class GUI():
             self.passbox.dirty.set(False)
             self.status.set('Passwords saved')
         finally:
-            self.file_lock.release()
+            if get_lock:
+                self.file_lock.release()
 
     def save_clear(self, file_path):
         '''Make a dump of all password as a clear text file.'''
