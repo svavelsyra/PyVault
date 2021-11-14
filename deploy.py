@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-from acid_vault.version import __version__
+from acid_vault.vault.helpers.version import __version__
 
 
 def tox():
@@ -16,35 +16,43 @@ def tox():
 
 
 def clean():
-    for filename in os.listdir('dist'):
+    print('Cleaning')
+    try:
+        fnames = os.listdir('dist')
+    except FileNotFoundError:
+        fnames = []
+    for filename in fnames:
         os.remove(os.path.join('dist', filename))
     print('Cleaned')
     return 0
 
 
 def build():
+    print('Building')
     p = subprocess.Popen([sys.executable, 'setup.py', 'sdist', 'bdist_wheel'],
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
     p.wait()
     print(p.stdout.readlines())
     print(p.stderr.readlines())
-    print('Building')
+    print(f'Building complete with result: {p.returncode}')
     return p.returncode
 
 
 def upload():
+    print('Uploading')
     p = subprocess.Popen(['twine', 'upload', '-r', 'pypi', 'dist/*'],
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
     p.wait()
     print(p.stdout.readlines())
     print(p.stderr.readlines())
-    print('Upload completed')
+    print(f'Upload completed with result: {p.returncode}')
     return p.returncode
 
 
 def build_win():
+    print('Building windows installer')
     p = subprocess.Popen(['pyinstaller',
                           'install.py',
                           '-F',
@@ -59,7 +67,7 @@ def build_win():
     p.wait()
     print(p.stdout.readlines())
     print(p.stderr.readlines())
-    print('Windows installer built completed')
+    print(f'Windows installer built completed with result {p.returncode}')
     return p.returncode
 
 
