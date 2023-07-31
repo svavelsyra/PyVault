@@ -16,9 +16,9 @@
 # License along with this program.  If not, see                        #
 # <http://www.gnu.org/licenses/>.                                      #
 ########################################################################
-'''
+"""
 Graphical User Interface towards password vault.
-'''
+"""
 from vault.helpers.version import __version__, same_minor_version
 try:
     import datetime
@@ -40,12 +40,12 @@ try:
     from vault.widgets.widgets import DEFAULT_PROFILE
 
 except ImportError as err:
-    # Show an graphical error as well as in terminal.
+    # Show a graphical error as well as in terminal.
     tkinter.messagebox.showerror('Failed to import', err)
     raise
 
 
-class GUI():
+class GUI:
     """GUI to handle a password vault."""
     def __init__(self, master):
         self.startup_ok = False
@@ -101,7 +101,7 @@ class GUI():
         edit_profiles = widgets.Box(
             top, 'Button', command=self.edit_profiles, text='Edit Profiles')
 
-        # Option menues
+        # Option menus
         self.file_location = tkinter.StringVar()
         self.file_location.set('Local')
         file_location = tkinter.OptionMenu(
@@ -155,7 +155,7 @@ class GUI():
 
     def onclose(self):
         """Runs on GUI close to save settings."""
-        # Dont overwrite settings with empty values if startup failed.
+        # Don't overwrite settings with empty values if startup failed.
         if not self.startup_ok:
             return
         if self.dirty() and not tkinter.messagebox.askokcancel(
@@ -307,14 +307,14 @@ class GUI():
         self.profiles[profile_name] = profile
 
     def on_return_key(self, *event):
-        '''Called on return stroke bound to master password box.'''
+        """Called on return stroke bound to master password box."""
         if self.vault and self.vault.locked:
             self.update_password_box()
         else:
             self.load()
 
     def ask_for_file(self, call_type):
-        '''Ask user for a file, starting at users home dir.'''
+        """Ask user for a file, starting at users home dir."""
         initialdir = os.path.expanduser('~')
         initialfile = time.strftime('%Y%m%d-%H%M%S')
         if self.file_config.get('use_steganography'):
@@ -329,6 +329,7 @@ class GUI():
                   'filetypes': filetypes,
                   'initialdir': initialdir,
                   'initialfile': initialfile}
+        path = None
         if 'save' in call_type:
             path = tkinter.filedialog.asksaveasfilename(**kwargs)
         elif 'load' in call_type:
@@ -392,7 +393,7 @@ class GUI():
             return
         get_lock = self.file_location.get() == 'Remote'
         if get_lock:
-            self.status.set('Aquiring file lock')
+            self.status.set('Acquiring file lock')
             self.file_lock.acquire()
         try:
             path, ssh_params, original_file_path = self.get_params(path)
@@ -426,7 +427,7 @@ class GUI():
             if not self.vault:
                 self.vault = Vault()
             # Cannot do self.vault.update = not path here due
-            # to that its not all cases where it holds.
+            # to that it's not all cases where it holds.
             if not path:
                 self.vault.update = True
             path, ssh_params, original_file_path = self.get_params(path)
@@ -438,6 +439,7 @@ class GUI():
                             'a while...')
             objects = [self.passbox.item(x, 'values') for x in
                        self.passbox.get_children()]
+            objects = self.passbox.get_objects()
             self.vault.set_objects(objects)
             self.vault.lock(self._password)
             self.vault.save(path, ssh_params, original_file_path)
@@ -449,7 +451,7 @@ class GUI():
                 self.file_lock.release()
 
     def save_clear(self, file_path):
-        '''Make a dump of all password as a clear text file.'''
+        """Make a dump of all password as a clear text file."""
         try:
             with open(file_path, 'w') as fh:
                 self.vault.save_clear(fh)
@@ -457,7 +459,7 @@ class GUI():
             self.status.set(err, color='red')
 
     def load_clear(self, file_path):
-        '''Load clear text password file.'''
+        """Load clear text password file."""
         if self.passbox.dirty.get():
             self.status.set('Save current passwords first', color='red')
             return
@@ -481,17 +483,18 @@ class GUI():
         self.lock_btn.config(text='Lock')
         self.lock_btn.config(state=tkinter.NORMAL)
         if self.vault.update_version(self.password):
-            self.status.set('Saving updated fileformat to server')
+            self.status.set('Saving updated file format to server')
             self.vault.lock(self._password)
             self.vault.save(self.get_params())
             self.vault.unlock(self._password)
-        for password in sorted(self.vault.get_objects()):
+        print(self.vault.get_objects())
+        for password in sorted(self.vault.get_objects(), key=lambda obj: obj[2]):
             self.passbox.add(password)
         self.passbox.dirty.set(False)
         self.status.set('Passwords updated')
 
     def setup_files(self):
-        """Setup files throught dialog."""
+        """Setup files through dialog."""
         result = widgets.SetupFiles(self.master,
                                     'File Config',
                                     self.file_config).result
@@ -537,7 +540,7 @@ class GUI():
             self.lock()
 
     def dirty(self, *args, **kwargs):
-        '''Sets dirty flag (*) in tile as well as returing current status.'''
+        """Sets dirty flag (*) in tile as well as returning current status."""
         dirty = ' *' if self.passbox.dirty.get() else ''
         self.master.title(self.title + dirty)
         return bool(dirty)
@@ -546,10 +549,11 @@ class GUI():
 class PasswordBox(tkinter.ttk.Treeview):
     """Class to display password list."""
     def __init__(self, master):
-        self.columns = ('Uid', 'Date', 'System', 'User Name', 'Password', 'Notes')
+        self.columns = ('Uid', 'Date', 'System', 'User Name', 'Password', 'Notes', 'Delete')
         self.f = tkinter.Frame(master)
         self.pw = None
         self.timer = False
+        self.objects = {}
         super().__init__(self.f,
                          columns=self.columns,
                          displaycolumns=('System', 'User Name'),
@@ -581,6 +585,7 @@ class PasswordBox(tkinter.ttk.Treeview):
         self.dirty.set(False)
         if children:
             self.delete(*children)
+        self.objects = {}
 
     def clear_clipboard(self):
         try:
@@ -605,10 +610,17 @@ class PasswordBox(tkinter.ttk.Treeview):
         password = password or widgets.AddPassword(self.master).result
         if not password:
             return
-        # Converting to new format if needed.
+        # Converting to new formats if needed.
         if len(password) == 4:
             password = [uuid.uuid4(), datetime.datetime.utcnow(), *password]
+        if len(password) == 6:
+            password = [*password, False]
+        self.objects[str(password[0])] = password
+        # Insert Alphabetically sorted on System.
         for index, iid in enumerate(self.get_children()):
+            # If Password is deleted, do not show it.
+            if password[6] in ('True', True, 'T', 1):
+                break
             if self.set(iid, 'System').lower() > password[2].lower():
                 self.insert('', index, values=password)
                 break
@@ -622,10 +634,12 @@ class PasswordBox(tkinter.ttk.Treeview):
             return
         values = self.item(iid, 'values')
         result = widgets.AddPassword(self.master, 'Password', values).result
-        # We got a result and atleast one field has changed
-        if result and [x for x in zip(values, result) if x[0] != x[1]]:
+        if result:
             self.delete(iid)
             self.add(result)
+
+    def get_objects(self):
+        return [self.objects[key] for key in self.objects]
 
     def on_click(self, event):
         """Open Edit dialog on click."""

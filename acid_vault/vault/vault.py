@@ -15,9 +15,7 @@
 # License                                                              #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.#
 ########################################################################
-'''
-Encrypts and decrypts data.
-'''
+"""Encrypts and decrypts data."""
 import ast
 import base64
 import datetime
@@ -37,7 +35,7 @@ from .helpers import ssh
 from .helpers import steganography
 from .helpers import version
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 VALID_PASSWORD_TYPES = ('alpha',
                         'alphanum',
                         'alphanumspecial',
@@ -48,12 +46,12 @@ VALID_PASSWORD_TYPES = ('alpha',
 
 
 class VaultError(Exception):
-    '''Vault releated errors.'''
+    """Vault releated errors."""
     pass
 
 
-class Vault():
-    '''Class to hold salt, iterations and the data.'''
+class Vault:
+    """Class to hold salt, iterations and the data."""
     def __init__(self,
                  data_path=None,
                  ssh_params=None,
@@ -74,7 +72,7 @@ class Vault():
 
     @property
     def locked(self):
-        '''Locked status of the vault'''
+        """Locked status of the vault"""
         return self._locked
 
     @property
@@ -85,7 +83,7 @@ class Vault():
         if ssh_params:
             with ssh.RemoteFile(ssh_params, file_path, mode) as fh:
                 if not fh:
-                    raise VaultError('Could not aquire lock')
+                    raise VaultError('Could not acquire lock')
                 return call(fh, path_to_orginal)
         else:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -100,13 +98,22 @@ class Vault():
             return
         if not version.is_greater_version(VERSION, self.data.get('version')):
             return
-        # Save status of lock so we know if we should lock again.
+        # Save status of lock, so we know if we should lock again.
         lock_status = self.locked
         if lock_status:
             self.unlock(password)
         for record in self.data['vault']:
-            record['date'] = record.get('date', '')
-            record['uid'] = record.get('uid', uuid.uuid4())
+            # 1.0.0
+            if isinstance(record, dict):
+                record['date'] = record.get('date', '')
+                record['uid'] = record.get('uid', uuid.uuid4())
+            # 1.1.0
+            if isinstance(record, tuple):
+                record = list(record)
+                if isinstance(record[0], str):
+                    record[0] = uuid.UUID(record[0])
+                if isinstance(record[1], str) and record[1]:
+                    record[1] = datetime.datetime.fromisoformat(record[1])
         if lock_status:
             self.lock(password)
         return True
@@ -135,12 +142,29 @@ class Vault():
         self.unlock(password)
         data = self._unlock(password, data)
         updated = False
-        current = {obj['uid']: obj['date'] for obj in self.data['vault']}
+        current = {obj[0]: obj for obj in self.data['vault']}
         for obj in data:
             if 'uid' in obj and obj['uid'] not in current:
                 self.add(obj)
                 updated = True
             elif 'date' in obj and obj['date'] > current[obj['uid']]['date']:
+                self.replace(obj)
+                updated = True
+        self.lock(password)
+        if updated:
+            self.save(file_path, ssh_params, path_to_original)
+
+    def merge(self, password, data, file_path, ssh_params, path_to_original):
+        self.unlock(password)
+        data = self._unlock(password, data)
+        updated = False
+        current = {obj[0]: obj for obj in self.data['vault']}
+        for obj in data:
+            if obj[0] not in current:
+                self.add(obj) # Check if add works as intended
+                updated = True
+            # Checking date.
+            elif obj[1] > current[obj[0]][1]:
                 self.replace(obj)
                 updated = True
         self.lock(password)
@@ -214,7 +238,7 @@ class Vault():
             pass
 
     def create_key(self, password, salt, iterations=1000000):
-        '''Create a key to be used.'''
+        """Create a key to be used."""
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -226,18 +250,18 @@ class Vault():
             kdf.derive(bytearray(password, 'utf-8')))
 
     def get_objects(self):
-        '''Get objects in their current state in vault.'''
+        """Get objects in their current state in vault."""
         return self.data['vault']
 
     def set_objects(self, objs):
-        '''Set vault content to input.'''
+        """Set vault content to input."""
         if not self.locked:
             self.data['vault'] = []
             for obj in objs:
                 self.add(obj)
 
     def add(self, obj):
-        '''Add to vault content.'''
+        """Add to vault content."""
         self.data['vault'].append(obj)
         self.data['timestamp'] = datetime.datetime.utcnow()
 
