@@ -29,7 +29,7 @@ import uuid
 from ..helpers.version import __version__, __author__, __email__  # noqa:F401,E501 These are actually used
 from ..helpers.version import __license__, __uri__, __summary__  # noqa:F401,E501 These are actually used
 from ..vault import generate_password
-from ..vault import VALID_PASSWORD_TYPES
+from ..constants import VALID_PASSWORD_TYPES
 
 DEFAULT_PROFILE = {
             'attributes': {
@@ -260,7 +260,8 @@ class AddPassword(Dialog):
                   self.notes.get(),
                   False,)  # Delete False.
         # If we got initial data, check if something has changed and
-        # only update result if it has changed (date will always change).
+        # only update result if it has changed (date will always change
+        # so exclude it in comparison).
         if self.initial_data and len(self.initial_data) == len(result):
             if [index for index in range(2, 6) if
                     result[index] != self.initial_data[index]]:
@@ -384,7 +385,7 @@ class About(Dialog):
             button.pack()
 
     def update(self, version):
-        """Update to newest version of program"""
+        """Update to the newest version of program"""
         p = subprocess.Popen(
             [sys.executable, '-m', 'pip', 'install', f'acid_vault=={version}'],
             stdout=subprocess.PIPE)
@@ -437,7 +438,7 @@ class StatusBar(tkinter.Label):
 
 
 class LabelEntry(tkinter.Frame):
-    """A labled entry frame."""
+    """A labeled entry frame."""
     def __init__(self, master, *args, **kwargs):
         self.master = master
         label = kwargs.pop('label', '')

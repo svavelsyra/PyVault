@@ -34,15 +34,8 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from .helpers import ssh
 from .helpers import steganography
 from .helpers import version
-
-VERSION = '1.1.0'
-VALID_PASSWORD_TYPES = ('alpha',
-                        'alphanum',
-                        'alphanumspecial',
-                        'mobilealpha',
-                        'mobilealphanum',
-                        'mobilealphanumspecial',
-                        'numerical')
+from .constants import VERSION
+from .constants import UUID, DATE, SYSTEM, USER, PASSWORD, NOTES, DELETED
 
 
 class VaultError(Exception):
@@ -101,19 +94,24 @@ class Vault:
         # Save status of lock, so we know if we should lock again.
         lock_status = self.locked
         if lock_status:
-            self.unlock(password)
+            if not self.unlock(password):
+                return
+
         for record in self.data['vault']:
             # 1.0.0
             if isinstance(record, dict):
                 record['date'] = record.get('date', '')
                 record['uid'] = record.get('uid', uuid.uuid4())
             # 1.1.0
+            if isinstance(record, dict):
+                pass
             if isinstance(record, tuple):
                 record = list(record)
-                if isinstance(record[0], str):
-                    record[0] = uuid.UUID(record[0])
-                if isinstance(record[1], str) and record[1]:
-                    record[1] = datetime.datetime.fromisoformat(record[1])
+                if isinstance(record[UUID], str):
+                    record[UUID] = uuid.UUID(record[UUID])
+                if isinstance(record[DATE], str) and record[DATE]:
+                    record[DATE] = datetime.datetime.fromisoformat(record[DATE])
+
         if lock_status:
             self.lock(password)
         return True
@@ -144,24 +142,8 @@ class Vault:
         updated = False
         current = {obj[0]: obj for obj in self.data['vault']}
         for obj in data:
-            if 'uid' in obj and obj['uid'] not in current:
-                self.add(obj)
-                updated = True
-            elif 'date' in obj and obj['date'] > current[obj['uid']]['date']:
-                self.replace(obj)
-                updated = True
-        self.lock(password)
-        if updated:
-            self.save(file_path, ssh_params, path_to_original)
-
-    def merge(self, password, data, file_path, ssh_params, path_to_original):
-        self.unlock(password)
-        data = self._unlock(password, data)
-        updated = False
-        current = {obj[0]: obj for obj in self.data['vault']}
-        for obj in data:
             if obj[0] not in current:
-                self.add(obj) # Check if add works as intended
+                self.add(obj)
                 updated = True
             # Checking date.
             elif obj[1] > current[obj[0]][1]:
@@ -182,7 +164,7 @@ class Vault:
         self._locked = True
 
     def save(self, file_path, ssh_params=None, path_to_original=None):
-        def write(fh, path_to_orginal):
+        def write(fh, path_to_original):
             if path_to_original:
                 steganography.write(
                     fh, path_to_original, pickle.dumps(self.data))
@@ -193,7 +175,7 @@ class Vault:
         self._open(file_path, ssh_params, path_to_original, 'wb', write)
 
     def load_clear(self, fh):
-        '''Load data from open file containing clear text data.'''
+        """Load data from open file containing clear text data."""
         if self.locked:
             raise VaultError('Vault is locked, unlock first!')
         self._locked = False
@@ -201,14 +183,14 @@ class Vault:
             self.add(ast.literal_eval(row.strip()))
 
     def save_clear(self, fh):
-        '''Save data in open file as clear text.'''
+        """Save data in open file as clear text."""
         if self.locked:
             raise VaultError('Vault is locked, please unlock first')
         for obj in self.data['vault']:
             print(repr(obj), file=fh)
 
     def lock(self, password):
-        '''Lock vault with password.'''
+        """Lock vault with password."""
         if self._locked:
             return
         data = pickle.dumps(self.data['vault'])
@@ -219,13 +201,14 @@ class Vault:
         self._locked = True
 
     def unlock(self, password):
-        '''Unlock vault with password.'''
+        """Unlock vault with password."""
         if not self._locked:
-            return
+            return self.data
         data = self._unlock(password, self.data)
         if data:
             self.data = data
             self._locked = False
+        return data
 
     def _unlock(self, password, data):
         key = self.create_key(password,
@@ -273,15 +256,17 @@ class Vault:
                 return True
 
     def remove_password(self, obj):
-        '''Remove obj from vault if it exists.'''
+        """Remove obj from vault if it exists."""
         self.data['vault'].remove(obj)
 
 
 def generate_password(password_type='alpha', n=10):
-    '''Password generator to sugest randomized passwords.'''
+    """Password generator to suggest randomized passwords."""
     alphabets = {'alpha': (string.ascii_letters, 'isupper', 'islower'),
-                 'alphanum': (string.ascii_letters + string.digits, 'isupper', 'islower', 'isdigit'),  # noqa: E501 Line to long
-                 'alphanumspecial': (string.ascii_letters + string.digits + '!"#¤%&/()=?', 'isupper', 'islower', 'isdigit'),  # noqa: E501 Line to long
+                 'alphanum': (string.ascii_letters + string.digits,
+                              'isupper', 'islower', 'isdigit'),
+                 'alphanumspecial': (string.ascii_letters + string.digits + '!"#¤%&/()=?',
+                                     'isupper', 'islower', 'isdigit'),
                  'mobilealpha': (string.ascii_lowercase, 'islower'),
                  'mobilealphanum': (string.ascii_lowercase, 'islower'),
                  'mobilealphanumspecial': (string.ascii_lowercase, 'islower'),

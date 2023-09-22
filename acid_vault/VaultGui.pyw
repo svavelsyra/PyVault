@@ -478,16 +478,19 @@ class GUI:
         self.status.set('Updating password box')
         self.passbox.clear()
         self._password = self.password.get()
-        self.status.set('Unlocking vault')
-        self.vault.unlock(self._password)
-        self.lock_btn.config(text='Lock')
-        self.lock_btn.config(state=tkinter.NORMAL)
-        if self.vault.update_version(self.password):
+        if self.vault.update_version(self._password):
             self.status.set('Saving updated file format to server')
-            self.vault.lock(self._password)
-            self.vault.save(self.get_params())
-            self.vault.unlock(self._password)
-        print(self.vault.get_objects())
+            if not self.vault.locked:
+                self.vault.lock(self._password)
+            self.vault.save(*self.get_params())
+        if self.vault.locked:
+            self.status.set('Unlocking vault')
+            if not self.vault.unlock(self._password):
+                self.status.set("Failed to unlock, is password correct?")
+                return
+            self.lock_btn.config(text='Lock')
+            self.lock_btn.config(state=tkinter.NORMAL)
+
         for password in sorted(self.vault.get_objects(), key=lambda obj: obj[2]):
             self.passbox.add(password)
         self.passbox.dirty.set(False)
