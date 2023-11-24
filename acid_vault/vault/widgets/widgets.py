@@ -15,7 +15,7 @@
 # License along with this program.  If not, see                        #
 # <http://www.gnu.org/licenses/>.                                      #
 ########################################################################
-'''Varius GUI widgets'''
+"""Varius GUI widgets"""
 import datetime
 from distutils.version import LooseVersion
 import json
@@ -29,7 +29,7 @@ import uuid
 from ..helpers.version import __version__, __author__, __email__  # noqa:F401,E501 These are actually used
 from ..helpers.version import __license__, __uri__, __summary__  # noqa:F401,E501 These are actually used
 from ..vault import generate_password
-from ..vault import VALID_PASSWORD_TYPES
+from ..constants import VALID_PASSWORD_TYPES
 
 DEFAULT_PROFILE = {
             'attributes': {
@@ -47,6 +47,7 @@ DEFAULT_PROFILE = {
                     'clear_on_exit': True},
                 'last_update': None},
             'widgets': {'file_location': 'Local'}}
+
 
 class Dialog(tkinter.Toplevel):
     """
@@ -192,17 +193,22 @@ class EditProfiles(Dialog):
         self.result = {'rename': rename,
                        'keep': keep,
                        }
-        
-            
+
 
 class AddPassword(Dialog):
-    '''Add/Edit password dialog.'''
+    """Add/Edit password dialog."""
+    def __init__(self, parent, title=None, initial_data=None):
+        super().__init__(parent, title, initial_data)
+        self.timer = None
+        self.initial_data = None
+        self.uid = None
+
     def body(self, master, initial_data):
         """Body of set key dialog."""
         self.timer = Timer(master, self.close, 5000*60)
         master.bind_all('<Enter>', self.timer.reset)
         self.initial_data = initial_data
-        if initial_data and len(initial_data) == 6:
+        if initial_data and len(initial_data) in (6, 7):
             self.uid = uuid.UUID(initial_data[0])
             start = 2
         else:
@@ -227,10 +233,10 @@ class AddPassword(Dialog):
         pw_type = tkinter.StringVar()
         pw_type.set(VALID_PASSWORD_TYPES[0])
         pw_len = tkinter.IntVar()
-        pw_len.set(10)
+        pw_len.set(16)
         gen_pass = tkinter.OptionMenu(f, pw_type, *VALID_PASSWORD_TYPES)
         gen_pass.configure(width=20)
-        length = tkinter.OptionMenu(f, pw_len, *range(4, 16))
+        length = tkinter.OptionMenu(f, pw_len, *range(8, 32))
         length.configure(width=2)
 
         gen_pass.pack(side='left')
@@ -251,7 +257,11 @@ class AddPassword(Dialog):
                   self.system.get(),
                   self.username.get(),
                   self.password.get(),
-                  self.notes.get())
+                  self.notes.get(),
+                  False,)  # Delete False.
+        # If we got initial data, check if something has changed and
+        # only update result if it has changed (date will always change
+        # so exclude it in comparison).
         if self.initial_data and len(self.initial_data) == len(result):
             if [index for index in range(2, 6) if
                     result[index] != self.initial_data[index]]:
@@ -259,13 +269,31 @@ class AddPassword(Dialog):
         else:
             self.result = result
 
+    def delete(self):
+        """Delete password"""
+        self.result = (self.uid,
+                       datetime.datetime.utcnow(),
+                       self.system.get(),
+                       self.username.get(),
+                       self.password.get(),
+                       self.notes.get(),
+                       True)  # Delete True.
+        self.cancel()
+
     def close(self):
-        self.timer.stop()
+        if self.timer:
+            self.timer.stop()
         self.destroy()
+
+    def buttonbox(self):
+        box = super().buttonbox()
+        b = tkinter.ttk.Button(
+            box, text="Delete", width=10, command=self.delete)
+        b.pack(side='left', padx=5, pady=5)
 
 
 class SetupSSH(Dialog):
-    '''Setup SSH related settings.'''
+    """Setup SSH related settings."""
     def body(self, master, initial_data):
         """Body of SSH settings dialog."""
         self.clear_on_exit = tkinter.BooleanVar()
@@ -298,7 +326,7 @@ class SetupSSH(Dialog):
 
 
 class SetupFiles(Dialog):
-    '''File related settings, paths and steganography.'''
+    """File related settings, paths and steganography."""
     def body(self, master, initial_data):
         # Checkboxes.
         for key, default in (('use_steganography', False),
@@ -336,7 +364,7 @@ class SetupFiles(Dialog):
 
 
 class About(Dialog):
-    '''About information and update program button.'''
+    """About information and update program button."""
     def body(self, master, _):
         for name, var in (('', '__summary__'),
                           ('Version: ', '__version__'),
@@ -358,7 +386,7 @@ class About(Dialog):
             button.pack()
 
     def update(self, version):
-        '''Update to newest version of program'''
+        """Update to the newest version of program"""
         p = subprocess.Popen(
             [sys.executable, '-m', 'pip', 'install', f'acid_vault=={version}'],
             stdout=subprocess.PIPE)
@@ -396,7 +424,7 @@ class Box(tkinter.Frame):
 
 
 class StatusBar(tkinter.Label):
-    '''Status bar widget.'''
+    """Status bar widget."""
     def __init__(self, master, *args, **kwargs):
         self.default_color = master.cget('bg')
         self.master = master
@@ -411,7 +439,7 @@ class StatusBar(tkinter.Label):
 
 
 class LabelEntry(tkinter.Frame):
-    '''A labled entry frame.'''
+    """A labeled entry frame."""
     def __init__(self, master, *args, **kwargs):
         self.master = master
         label = kwargs.pop('label', '')
@@ -436,7 +464,7 @@ class LabelEntry(tkinter.Frame):
 
 
 class Timer():
-    """Timer class to triger call back after given time."""
+    """Timer class to trigger call back after given time."""
     def __init__(self, master, callback, after, reset_after_trigger=False,
                  *args, **kwargs):
         self.master = master
@@ -463,7 +491,7 @@ class Timer():
 
 
 def check_version(name):
-    '''Checks current version for package on pypi'''
+    """Checks current version for package on pypi"""
     pypi_url = f'https://pypi.org/pypi/{name}/json'
     response = urllib.request.urlopen(pypi_url, timeout=5).read().decode()
     latest_version = max(LooseVersion(s) for s in
