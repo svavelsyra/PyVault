@@ -281,7 +281,8 @@ class AddPassword(Dialog):
         self.cancel()
 
     def close(self):
-        self.timer.stop()
+        if self.timer:
+            self.timer.stop()
         self.destroy()
 
     def buttonbox(self):

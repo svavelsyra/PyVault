@@ -1,4 +1,4 @@
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 VALID_PASSWORD_TYPES = ('alpha',
                         'alphanum',
                         'alphanumspecial',
@@ -6,6 +6,8 @@ VALID_PASSWORD_TYPES = ('alpha',
                         'mobilealphanum',
                         'mobilealphanumspecial',
                         'numerical')
+KEEP_DAYS = 30
+
 UUID = 0
 DATE = 1
 SYSTEM = 2

@@ -34,12 +34,12 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from .helpers import ssh
 from .helpers import steganography
 from .helpers import version
-from .constants import VERSION
+from .constants import VERSION, KEEP_DAYS
 from .constants import UUID, DATE, SYSTEM, USER, PASSWORD, NOTES, DELETED
 
 
 class VaultError(Exception):
-    """Vault releated errors."""
+    """Vault related errors."""
     pass
 
 
@@ -72,16 +72,16 @@ class Vault:
     def timestamp(self):
         return self.data.get('timestamp')
 
-    def _open(self, file_path, ssh_params, path_to_orginal, mode, call):
+    def _open(self, file_path, ssh_params, path_to_original, mode, call):
         if ssh_params:
             with ssh.RemoteFile(ssh_params, file_path, mode) as fh:
                 if not fh:
                     raise VaultError('Could not acquire lock')
-                return call(fh, path_to_orginal)
+                return call(fh, path_to_original)
         else:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, mode) as fh:
-                return call(fh, path_to_orginal)
+                return call(fh, path_to_original)
 
     def force_lock(self, ssh_params):
         ssh.force_lock(**ssh_params)
@@ -89,7 +89,8 @@ class Vault:
     def update_version(self, password):
         if not self.update:
             return
-        if not version.is_greater_version(VERSION, self.data.get('version')):
+        current_version = self.data.get('version')
+        if not version.is_greater_version(VERSION, current_version):
             return
         # Save status of lock, so we know if we should lock again.
         lock_status = self.locked
@@ -97,21 +98,32 @@ class Vault:
             if not self.unlock(password):
                 return
 
-        for record in self.data['vault']:
-            # 1.0.0
-            if isinstance(record, dict):
-                record['date'] = record.get('date', '')
-                record['uid'] = record.get('uid', uuid.uuid4())
-            # 1.1.0
-            if isinstance(record, dict):
-                pass
-            if isinstance(record, tuple):
-                record = list(record)
-                if isinstance(record[UUID], str):
-                    record[UUID] = uuid.UUID(record[UUID])
-                if isinstance(record[DATE], str) and record[DATE]:
-                    record[DATE] = datetime.datetime.fromisoformat(record[DATE])
+        for index, record in enumerate(self.data['vault']):
+            # It has to be magic numbers within this function as the
+            # Constant that keeps track of tuple position only reflects
+            # last versions order.
+            if version.is_greater_version('1.0.0', current_version):
+                if isinstance(record, dict):
+                    record['date'] = record.get('date', '')
+                    record['uid'] = record.get('uid', uuid.uuid4())
 
+            if version.is_greater_version('2.0.0', current_version):
+                if isinstance(record, dict):
+                    record = [record['uid'],
+                              record['date'],
+                              record['system'],
+                              record['user'],
+                              record['password'],
+                              record['notes'],
+                              '']
+                if isinstance(record, (tuple, list)):
+                    record = list(record)
+                    # Has to be magic numbers here.
+                    if isinstance(record[0], str):
+                        record[0] = uuid.UUID(record[0])
+                    if isinstance(record[1], str) and record[1]:
+                        record[1] = datetime.datetime.fromisoformat(record[1])
+            self.data['vault'][index] = tuple(record)
         if lock_status:
             self.lock(password)
         return True
@@ -140,15 +152,17 @@ class Vault:
         self.unlock(password)
         data = self._unlock(password, data)
         updated = False
-        current = {obj[0]: obj for obj in self.data['vault']}
+        current = {obj[UUID]: obj for obj in self.data['vault']}
         for obj in data:
-            if obj[0] not in current:
+            obj_id = obj[UUID]
+            if obj_id not in current:
                 self.add(obj)
                 updated = True
             # Checking date.
-            elif obj[1] > current[obj[0]][1]:
+            elif obj[DATE] > current[obj_id][DATE]:
                 self.replace(obj)
                 updated = True
+        updated = self.remove_deleted() or updated
         self.lock(password)
         if updated:
             self.save(file_path, ssh_params, path_to_original)
@@ -220,7 +234,8 @@ class Vault:
         except InvalidToken:
             pass
 
-    def create_key(self, password, salt, iterations=1000000):
+    @staticmethod
+    def create_key(password, salt, iterations=1000000):
         """Create a key to be used."""
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -258,6 +273,16 @@ class Vault:
     def remove_password(self, obj):
         """Remove obj from vault if it exists."""
         self.data['vault'].remove(obj)
+
+    def remove_deleted(self):
+        now = datetime.datetime.now()
+        keep = datetime.timedelta(days=KEEP_DAYS)
+        before = len(self.data['valut'])
+        self.data['vault'] = [record for record in self.data['vault']
+                              if not (record[DELETED] and
+                                      record[DATE] + keep < now)
+                              ]
+        return not before == len(self.data['vault'])
 
 
 def generate_password(password_type='alpha', n=10):

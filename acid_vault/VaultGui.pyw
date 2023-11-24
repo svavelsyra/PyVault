@@ -41,7 +41,7 @@ try:
 
 except ImportError as err:
     # Show a graphical error as well as in terminal.
-    tkinter.messagebox.showerror('Failed to import', err)
+    tkinter.messagebox.showerror('Failed to import', str(err))
     raise
 
 
@@ -441,6 +441,7 @@ class GUI:
                        self.passbox.get_children()]
             objects = self.passbox.get_objects()
             self.vault.set_objects(objects)
+            self.vault.remove_deleted()
             self.vault.lock(self._password)
             self.vault.save(path, ssh_params, original_file_path)
             self.vault.unlock(self._password)
