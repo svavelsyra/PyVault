@@ -437,8 +437,7 @@ class GUI:
             self._password = self.password.get()
             self.status.set(f'Saving passwords to {path} this may take '
                             'a while...')
-            objects = [self.passbox.item(x, 'values') for x in
-                       self.passbox.get_children()]
+
             objects = self.passbox.get_objects()
             self.vault.set_objects(objects)
             self.vault.remove_deleted()
