@@ -170,10 +170,15 @@ class Vault:
     def load(self, file_path, ssh_params=None, path_to_original=None):
         def read(fh, path_to_original):
             if path_to_original:
-                self.data = pickle.loads(
+                data = pickle.loads(
                     steganography.read(fh, path_to_original))
             else:
-                self.data = pickle.load(fh)
+                data = pickle.load(fh)
+            # Loaded data has a version that is higher than program.
+            if version.is_greater_version(data['version'], VERSION):
+                raise VaultError(f'Version missmatch: Please update Vault to latest version.')
+            else:
+                self.data = data
         self._open(file_path, ssh_params, path_to_original, 'rb', read)
         self._locked = True
 
