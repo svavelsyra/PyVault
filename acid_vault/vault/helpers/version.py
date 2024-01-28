@@ -34,6 +34,7 @@ V.2.0.2 - UI no longer lock on OK in edit password.
 V.2.0.3 - Fixed project structure to make tests work again.
 V.2.1.0 - Copy pass on rightclick.
 V.2.2.0 - Profiles, Properly close lockscript, Fixed local mode.
+V.2.3.0 - Delete passwords RC 1, Use delete function with caution.
 '''
 try:
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +45,7 @@ except NameError:
 __title__ = "acid_vault"
 __summary__ = "Python Password Vault"
 __uri__ = "https://github.com/svavelsyra/PyVault"
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 
 if base_dir is not None and os.path.exists(os.path.join(base_dir, ".commit")):
     with open(os.path.join(base_dir, ".commit")) as fp:
