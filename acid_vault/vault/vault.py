@@ -282,7 +282,7 @@ class Vault:
     def remove_deleted(self):
         now = datetime.datetime.now()
         keep = datetime.timedelta(days=KEEP_DAYS)
-        before = len(self.data['valut'])
+        before = len(self.data['vault'])
         self.data['vault'] = [record for record in self.data['vault']
                               if not (record[DELETED] and
                                       record[DATE] + keep < now)

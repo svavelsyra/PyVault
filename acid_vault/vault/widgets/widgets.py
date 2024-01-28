@@ -273,10 +273,10 @@ class AddPassword(Dialog):
         """Delete password"""
         self.result = (self.uid,
                        datetime.datetime.utcnow(),
-                       self.system.get(),
-                       self.username.get(),
-                       self.password.get(),
-                       self.notes.get(),
+                       '',
+                       '',
+                       '',
+                       '',
                        True)  # Delete True.
         self.cancel()
 

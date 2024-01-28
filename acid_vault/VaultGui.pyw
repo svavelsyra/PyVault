@@ -619,16 +619,15 @@ class PasswordBox(tkinter.ttk.Treeview):
         if len(password) == 6:
             password = [*password, False]
         self.objects[str(password[0])] = password
-        # Insert Alphabetically sorted on System.
-        for index, iid in enumerate(self.get_children()):
-            # If Password is deleted, do not show it.
-            if password[6] in ('True', True, 'T', 1):
-                break
-            if self.set(iid, 'System').lower() > password[2].lower():
-                self.insert('', index, values=password)
-                break
-        else:
-            self.insert('', 'end', values=password)
+        # If password is not deleted show it.
+        if not password[6]:
+            # Insert Alphabetically sorted on System.
+            for index, iid in enumerate(self.get_children()):
+                if self.set(iid, 'System').lower() > password[2].lower():
+                    self.insert('', index, values=password)
+                    break
+            else:
+                self.insert('', 'end', values=password)
         self.dirty.set(True)
 
     def edit(self, iid):
