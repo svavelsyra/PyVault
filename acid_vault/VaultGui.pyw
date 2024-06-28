@@ -39,9 +39,9 @@ try:
     from vault.widgets import widgets
     from vault.widgets.widgets import DEFAULT_PROFILE
 
-except ImportError as err:
+except ImportError as error:
     # Show a graphical error as well as in terminal.
-    tkinter.messagebox.showerror('Failed to import', str(err))
+    tkinter.messagebox.showerror('Failed to import', str(error))
     raise
 
 
@@ -57,6 +57,7 @@ class GUI:
         self.vaults = {}
         self.ssh_config = {}
         self.file_config = {}
+        self.encryption_config = {}
         self.last_update = False
         self.file_lock = threading.Lock()
 
@@ -118,18 +119,13 @@ class GUI:
         helpmenu = tkinter.Menu(menubar, tearoff=0)
         filemenu.add_command(label='Setup SSH', command=self.setup_ssh)
         filemenu.add_command(label='Setup Files', command=self.setup_files)
-        filemenu.add_command(
-            label='Save cleartext',
-            command=lambda *args, **kwargs: self.ask_for_file('save_clear'))
-        filemenu.add_command(
-            label='Load cleartext',
-            command=lambda *args, **kwargs: self.ask_for_file('load_clear'))
-        filemenu.add_command(
-            label='Save encrypted',
-            command=lambda *args, **kwargs: self.ask_for_file('save'))
-        filemenu.add_command(
-            label='Load encrypted',
-            command=lambda *args, **kwargs: self.ask_for_file('load'))
+        filemenu.add_command(label='Setup Encryption', command=self.setup_encryption)
+        for lbl, cmd in (('Save clear text', 'save_clear'),
+                         ('Load clear text', 'load_clear'),
+                         ('Save encrypted', 'save'),
+                         ('Load encrypted', 'load')):
+            filemenu.add_command(label=lbl, command=lambda c=cmd: self.ask_for_file(c))
+
         filemenu.add_command(
             label='Force lock',
             command=self.force_lock)
@@ -236,7 +232,7 @@ class GUI:
         self.profile_selector['menu'].delete(0, tkinter.END)
         for key in sorted(self.profiles.keys()):
             self.profile_selector['menu'].add_command(
-                label=key, command=lambda key=key: self.change_profile(key))
+                label=key, command=lambda k=key: self.change_profile(k))
         self.profile.set(profile_name)
 
     def change_profile(self, key):
@@ -258,7 +254,10 @@ class GUI:
         """Clear settings of current profile."""
         profile = self.profiles.get(self.profile.get(), {})
         for key in profile.get('widgets'):
-            getattr(self, key).set('')
+            try:
+                getattr(self, key).set('')
+            except KeyError:
+                pass
         for key in profile.get('attributes', {}):
             setattr(self, key, '')
 
@@ -293,6 +292,7 @@ class GUI:
         """Save profile settings to obj."""
         ssh_config = self.ssh_config
         file_config = self.file_config
+        encryption_config = self.encryption_config
         # Clearing SSH-Password if set
         if ssh_config:
             ssh_config['password'] = ''
@@ -302,6 +302,7 @@ class GUI:
             file_config = {}
         profile = {'attributes': {'ssh_config': ssh_config,
                                   'file_config': file_config,
+                                  'encryption_config': encryption_config,
                                   'last_update': self.last_update},
                    'widgets': {'file_location': self.file_location.get()}}
         self.profiles[profile_name] = profile
@@ -384,17 +385,17 @@ class GUI:
                               self.file_config.get('original_file'))
         return path, ssh_params, original_file_path
 
-    def load(self, path=None):
+    def load(self, path=None, lock_acquired=False):
         """Get and unlock passwords from vault."""
         # If we have loaded a local backup we don't
         # want to push to the server.
         update = not path
         if not self.verify():
             return
-        get_lock = self.file_location.get() == 'Remote'
+        get_lock = self.file_location.get() == 'Remote' and not lock_acquired
         if get_lock:
             self.status.set('Acquiring file lock')
-            self.file_lock.acquire()
+            lock_acquired = self.file_lock.acquire()
         try:
             path, ssh_params, original_file_path = self.get_params(path)
             if not path:
@@ -406,21 +407,46 @@ class GUI:
                 self.vault = Vault(
                     path, ssh_params, original_file_path, update=update)
                 self.vaults[self.profile.get()] = self.vault
+                if self.vault.iterations != self.encryption_config['iterations']:
+                    message = (f"The number of iterations for the loaded "
+                               f"vault ({self.vault.iterations}) doesn't "
+                               f"match the number of iterations set in "
+                               f"configuration "
+                               f"({self.encryption_config['iterations']})\n"
+                               f"Update vault to local setting (Yes)\n"
+                               f"Update local setting to vaults setting (No)\n"
+                               f"Keep as it is (Cancel)")
+                    update = tkinter.messagebox.askyesnocancel(
+                        title='Configuration Missmatch',
+                        message=message)
+                    # User chose to cancel, do nothing.
+                    if update is None:
+                        pass
+                    # User chose to update the vault settings from the local settings.
+                    elif update:
+                        self.vault.iterations = self.encryption_config['iterations']
+                        if not self.save(lock_acquired=lock_acquired):
+                            return
+                    # User chose to update local settings with vaults settings.
+                    else:
+                        print('HERE!')
+                        self.encryption_config['iterations'] = self.vault.iterations
             except Exception as err:
                 self.status.set(err, color='red')
                 return
-            self.status.set('Passwords successfully loaded')
+
             self.update_password_box()
+            self.status.set('Passwords successfully loaded')
         finally:
             if get_lock:
                 self.file_lock.release()
 
-    def save(self, path=None):
+    def save(self, path=None, lock_acquired=None):
         """Lock and save vault in to file."""
-        get_lock = self.file_location.get() == 'Remote'
+        get_lock = self.file_location.get() == 'Remote' and not lock_acquired
         if get_lock:
             self.status.set('Acquiring file lock')
-            self.file_lock.acquire()
+            lock_acquired = self.file_lock.acquire()
         try:
             if not self.verify():
                 return
@@ -430,6 +456,7 @@ class GUI:
             # to that it's not all cases where it holds.
             if not path:
                 self.vault.update = True
+            # ToDo: Debug here
             path, ssh_params, original_file_path = self.get_params(path)
             if not path:
                 self.status.set('Empty path, aborting', color='red')
@@ -449,6 +476,7 @@ class GUI:
         finally:
             if get_lock:
                 self.file_lock.release()
+            return True
 
     def save_clear(self, file_path):
         """Make a dump of all password as a clear text file."""
@@ -504,17 +532,27 @@ class GUI:
         if result:
             self.file_config = result
 
-    def add_password(self):
-        """Add a new password to password list."""
-        self.passbox.add()
+    def setup_encryption(self):
+        """Set encryption settings through dialog."""
+        result = widgets.SetupEncryption(self.master,
+                                         'Encryption Config',
+                                         self.encryption_config).result
+        if result:
+            self.encryption_config = result
+            if self.vault:
+                self.vault.encryption_settings = result
 
     def setup_ssh(self):
-        """Setup ssh settings throught a dialog."""
+        """Setup ssh settings through a dialog."""
         result = widgets.SetupSSH(self.master,
                                   'SSH Config',
                                   self.ssh_config).result
         if result:
             self.ssh_config = result
+
+    def add_password(self):
+        """Add a new password to password list."""
+        self.passbox.add()
 
     def make_dirs(self):
         """Create directory to contain files if it does not exist."""

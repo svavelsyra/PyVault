@@ -34,7 +34,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from .helpers import ssh
 from .helpers import steganography
 from .helpers import version
-from .constants import VERSION, KEEP_DAYS
+from .constants import FILE_VERSION, KEEP_DAYS, ITERATIONS
 from .constants import UUID, DATE, SYSTEM, USER, PASSWORD, NOTES, DELETED
 
 
@@ -49,7 +49,8 @@ class Vault:
                  data_path=None,
                  ssh_params=None,
                  path_to_original=None,
-                 update=True):
+                 update=True,
+                 iterations=ITERATIONS):
         self._locked = False
         # When loaded from local file do not update.
         self.update = update
@@ -58,10 +59,10 @@ class Vault:
             self.load(data_path, ssh_params, path_to_original)
         else:
             self.data = {'salt': os.urandom(16),
-                         'iterations': 1000000,
+                         'iterations': iterations,
                          'vault': [],
                          'timestamp': datetime.datetime.utcnow(),
-                         'version': VERSION}
+                         'version': FILE_VERSION}
 
     @property
     def locked(self):
@@ -72,7 +73,25 @@ class Vault:
     def timestamp(self):
         return self.data.get('timestamp')
 
-    def _open(self, file_path, ssh_params, path_to_original, mode, call):
+    @property
+    def encryption_settings(self):
+        return {'iterations': self.iterations}
+
+    @encryption_settings.setter
+    def encryption_settings(self, x):
+        self.iterations = x.get('iterations', self.iterations)
+
+    @property
+    def iterations(self):
+        return self.data.get('iterations')
+
+    @iterations.setter
+    def iterations(self, x):
+        self.data['iterations'] = x
+        print('iterations set')
+
+    @staticmethod
+    def _open(file_path, ssh_params, path_to_original, mode, call):
         if ssh_params:
             with ssh.RemoteFile(ssh_params, file_path, mode) as fh:
                 if not fh:
@@ -83,14 +102,15 @@ class Vault:
             with open(file_path, mode) as fh:
                 return call(fh, path_to_original)
 
-    def force_lock(self, ssh_params):
+    @staticmethod
+    def force_lock(ssh_params):
         ssh.force_lock(**ssh_params)
 
     def update_version(self, password):
         if not self.update:
             return
         current_version = self.data.get('version')
-        if not version.is_greater_version(VERSION, current_version):
+        if not version.is_greater_version(FILE_VERSION, current_version):
             return
         # Save status of lock, so we know if we should lock again.
         lock_status = self.locked
@@ -143,7 +163,7 @@ class Vault:
                     local_ver and
                     version.same_minor_version(remote_ver, local_ver)):
                 raise VaultError(
-                    f'Version missmatch: {remote_ver=}, {local_ver=}')
+                    f'Version mismatch: {remote_ver=}, {local_ver=}')
             if remote_ts and local_ts and remote_ts > local_ts:
                 return data
         return self._open(file_path, ssh_params, path_to_original, 'rb', check)
@@ -175,8 +195,8 @@ class Vault:
             else:
                 data = pickle.load(fh)
             # Loaded data has a version that is higher than program.
-            if version.is_greater_version(data['version'], VERSION):
-                raise VaultError(f'Version missmatch: Please update Vault to latest version.')
+            if version.is_greater_version(data['version'], FILE_VERSION):
+                raise VaultError(f'Version mismatch: Please update Vault to latest version.')
             else:
                 self.data = data
         self._open(file_path, ssh_params, path_to_original, 'rb', read)
@@ -190,7 +210,7 @@ class Vault:
             else:
                 fh.write(pickle.dumps(self.data))
         self.data['timestamp'] = datetime.datetime.utcnow()
-        self.data['version'] = VERSION
+        self.data['version'] = FILE_VERSION
         self._open(file_path, ssh_params, path_to_original, 'wb', write)
 
     def load_clear(self, fh):
@@ -211,11 +231,13 @@ class Vault:
     def lock(self, password):
         """Lock vault with password."""
         if self._locked:
+            print('Already locked')
             return
+        print('Lock:', self.data.get('iterations'))
         data = pickle.dumps(self.data['vault'])
         key = self.create_key(password,
                               self.data['salt'],
-                              self.data.get('iterations', 1000000))
+                              self.data.get('iterations', ITERATIONS))
         self.data['vault'] = Fernet(key).encrypt(data)
         self._locked = True
 
@@ -230,9 +252,10 @@ class Vault:
         return data
 
     def _unlock(self, password, data):
+        print('Unlock:', data.get('iterations'))
         key = self.create_key(password,
                               data['salt'],
-                              data.get('iterations', 1000000))
+                              data.get('iterations', ITERATIONS))
         try:
             data['vault'] = pickle.loads(Fernet(key).decrypt(data['vault']))
             return data
@@ -240,7 +263,7 @@ class Vault:
             pass
 
     @staticmethod
-    def create_key(password, salt, iterations=1000000):
+    def create_key(password, salt, iterations=ITERATIONS):
         """Create a key to be used."""
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),

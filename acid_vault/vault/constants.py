@@ -1,4 +1,4 @@
-VERSION = '1.1.1'
+FILE_VERSION = '1.1.1'
 VALID_PASSWORD_TYPES = ('alpha',
                         'alphanum',
                         'alphanumspecial',
@@ -6,6 +6,8 @@ VALID_PASSWORD_TYPES = ('alpha',
                         'mobilealphanum',
                         'mobilealphanumspecial',
                         'numerical')
+ALGOS = ('SHA256', )
+ITERATIONS = 1000000
 KEEP_DAYS = 30
 
 UUID = 0

@@ -29,7 +29,7 @@ import uuid
 from ..helpers.version import __version__, __author__, __email__  # noqa:F401,E501 These are actually used
 from ..helpers.version import __license__, __uri__, __summary__  # noqa:F401,E501 These are actually used
 from ..vault import generate_password
-from ..constants import VALID_PASSWORD_TYPES
+from ..constants import VALID_PASSWORD_TYPES, ITERATIONS
 
 DEFAULT_PROFILE = {
             'attributes': {
@@ -45,6 +45,11 @@ DEFAULT_PROFILE = {
                     'original_file': '',
                     'use_steganography': False,
                     'clear_on_exit': True},
+                'encryption_config': {
+                    'iterations': ITERATIONS,
+                    'algorithm': 'SHA256',
+                    'key_length': 32
+                },
                 'last_update': None},
             'widgets': {'file_location': 'Local'}}
 
@@ -294,9 +299,12 @@ class AddPassword(Dialog):
 
 class SetupSSH(Dialog):
     """Setup SSH related settings."""
+    def __init__(self, parent, title=None, initial_data=None):
+        self.clear_on_exit = tkinter.BooleanVar()
+        super().__init__(parent, title, initial_data)
+
     def body(self, master, initial_data):
         """Body of SSH settings dialog."""
-        self.clear_on_exit = tkinter.BooleanVar()
         self.clear_on_exit.set(initial_data.get('clear_on_exit', True))
         clear_on_exit = tkinter.Checkbutton(master,
                                             text='Clear SSH settings on exit',
@@ -323,6 +331,34 @@ class SetupSSH(Dialog):
         self.result = {key: getattr(self, key).get() for
                        key in ('host', 'port', 'username',
                                'password', 'clear_on_exit')}
+
+
+class SetupEncryption(Dialog):
+    """Encryption related settings."""
+    def __init__(self, parent, title=None, initial_data=None):
+        self.algorithm = tkinter.StringVar()
+        super().__init__(parent, title, initial_data)
+
+    def body(self, master, initial_data):
+        tkinter.Label(master, text='Remember to save your passwords after changing anything in here.').pack()
+        tkinter.OptionMenu(master, self.algorithm, value=('SHA256',)).pack(fill=tkinter.X)
+        algo = initial_data.get('algorithm', 'SHA256') if initial_data else 'SHA256'
+        self.algorithm.set(algo)
+        for key, default, var_type in (('iterations', ITERATIONS, tkinter.IntVar),
+                                       ('key_length', 32, tkinter.IntVar)):
+            value = initial_data.get(key, default) if initial_data else default
+            setattr(self, key, var_type(self, name=key, value=value))
+            e = LabelEntry(master,
+                           width=50,
+                           label=key.replace('_', ' ').title(),
+                           textvariable=getattr(self, key))
+            e.pack()
+            if key == 'key_length':
+                e.set_config(state='disabled')
+
+    def apply(self):
+        self.result = {key: getattr(self, key).get() for
+                       key in ('algorithm', 'iterations', 'key_length')}
 
 
 class SetupFiles(Dialog):
@@ -463,7 +499,7 @@ class LabelEntry(tkinter.Frame):
         self._entry.bind(*args, **kwargs)
 
 
-class Timer():
+class Timer:
     """Timer class to trigger call back after given time."""
     def __init__(self, master, callback, after, reset_after_trigger=False,
                  *args, **kwargs):
