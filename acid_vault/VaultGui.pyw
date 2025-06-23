@@ -429,8 +429,8 @@ class GUI:
                             return
                     # User chose to update local settings with vaults settings.
                     else:
-                        print('HERE!')
                         self.encryption_config['iterations'] = self.vault.iterations
+                        self.save_profile(self.profile.get())
             except Exception as err:
                 self.status.set(err, color='red')
                 return
