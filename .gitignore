@@ -131,3 +131,6 @@ dmypy.json
 
 #Visual studio code
 .vscode
+
+# AI resume file.
+resume_here.md

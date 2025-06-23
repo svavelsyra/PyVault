@@ -7,6 +7,7 @@ import acid_vault.vault.helpers.steganography as steganography
 from acid_vault.vault.helpers.steganography import SteganographyError
 
 def test_write(tmpdir):
+    """Test writing data to an image using steganography."""
     expected = 'ce91ce323ab4c03f705bc37c5071af1c'
     data = b'Test string to write'
     file_path = tmpdir.join('outfile.png')
@@ -20,6 +21,7 @@ def test_write(tmpdir):
 
 
 def test_read():
+    """Test reading data from an image using steganography."""
     expected = b'Test string to write'
     original_path = os.path.join(os.path.dirname(__file__),
                                  "test_data",
@@ -31,6 +33,7 @@ def test_read():
         assert steganography.read(fh, original_path) == expected
 
 def test_to_large(tmpdir):
+    """Test that writing too much data to an image raises an error."""
     file_path = tmpdir.join('outfile.png')
     original_path = os.path.join(os.path.dirname(__file__),
                                  "test_data",

@@ -12,7 +12,7 @@ NAME = 'PyVault'
 ICON_PATH = False
 
 
-class Installer():
+class Installer:
     def __init__(self, master):
         while True:
             p = subprocess.Popen(['where', 'python'], stdout=subprocess.PIPE)

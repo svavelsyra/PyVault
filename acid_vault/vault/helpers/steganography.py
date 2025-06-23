@@ -54,7 +54,8 @@ def write(fh, original, data):
 
 def read(fh, original):
     """
-    Read data from opened file and compare it to orignal to get stored data.
+    Read data from opened file and compare it to original to get stored
+    data.
     """
     def convert_result(result):
         return int(''.join(result), 2).to_bytes(len(result) // 8,
