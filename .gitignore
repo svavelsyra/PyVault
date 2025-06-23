@@ -132,5 +132,11 @@ dmypy.json
 #Visual studio code
 .vscode
 
+.idea/
+
+# Copilot instructions
+.github/copilot-instructions.md
+.github/GIT_USAGE.md
+
 # AI resume file.
 resume_here.md
