@@ -15,7 +15,14 @@
 # License                                                              #
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.#
 ########################################################################
-"""Encrypts and decrypts data."""
+"""Provides the core functionality for an encrypted password vault.
+
+This module contains the Vault class, which handles the encryption,
+decryption, storage, and management of password entries. It supports
+different storage backends like local files and remote SSH servers,
+and can use steganography to hide the vault data within images.
+"""
+
 import ast
 import base64
 import datetime
@@ -39,18 +46,39 @@ from .constants import UUID, DATE, SYSTEM, USER, PASSWORD, NOTES, DELETED
 
 
 class VaultError(Exception):
-    """Vault related errors."""
+    """Custom exception for vault-related errors."""
     pass
 
 
 class Vault:
-    """Class to hold salt, iterations and the data."""
+    """Manages passwords, including encryption, decryption, and storage.
+
+    This class is the core of the password vault. It encapsulates the
+    password data and provides methods to lock (encrypt) and unlock
+    (decrypt)
+    the vault. It also handles saving to and loading from different
+    storage backends.
+    """
     def __init__(self,
                  data_path=None,
                  ssh_params=None,
                  path_to_original=None,
                  update=True,
                  iterations=ITERATIONS):
+        """Initialize the Vault.
+
+        Args:
+            data_path (str, optional): Path to the vault file.
+                Defaults to None.
+            ssh_params (dict, optional): Parameters for SSH connection.
+                Defaults to None.
+            path_to_original (str, optional): Path to the original image
+                for steganography. Defaults to None.
+            update (bool, optional): Whether to allow updating the vault
+                file on the server. Defaults to True.
+            iterations (int, optional): Number of iterations for PBKDF2.
+                Defaults to ITERATIONS.
+        """
         self._locked = False
         # When loaded from local file do not update.
         self.update = update
@@ -66,32 +94,58 @@ class Vault:
 
     @property
     def locked(self):
-        """Locked status of the vault"""
+        """Return the locked status of the vault."""
         return self._locked
 
     @property
     def timestamp(self):
+        """Return the timestamp of the last data modification."""
         return self.data.get('timestamp')
 
     @property
     def encryption_settings(self):
+        """Return the encryption settings."""
         return {'iterations': self.iterations}
 
     @encryption_settings.setter
     def encryption_settings(self, x):
+        """Set the encryption settings."""
         self.iterations = x.get('iterations', self.iterations)
 
     @property
     def iterations(self):
+        """Return the number of iterations for key derivation."""
         return self.data.get('iterations')
 
     @iterations.setter
     def iterations(self, x):
+        """Set the number of iterations for key derivation."""
         self.data['iterations'] = x
         print('iterations set')
 
     @staticmethod
     def _open(file_path, ssh_params, path_to_original, mode, call):
+        """Open a file, either locally or remotely via SSH.
+
+        This is a helper method to abstract away the file opening logic
+        for different storage backends.
+
+        Args:
+            file_path (str): The path to the file.
+            ssh_params (dict): The parameters for the SSH connection.
+            path_to_original (str): The path to the original image for
+                steganography.
+            mode (str): The mode in which to open the file (e.g., 'rb',
+                'wb').
+            call (function): The function to call with the opened file
+                handle.
+
+        Raises:
+            VaultError: If the file lock could not be acquired.
+
+        Returns:
+            The return value of the `call` function.
+        """
         if ssh_params:
             with ssh.RemoteFile(ssh_params, file_path, mode) as fh:
                 if not fh:
@@ -104,9 +158,22 @@ class Vault:
 
     @staticmethod
     def force_lock(ssh_params):
+        """Force the release of a remote file lock.
+
+        Args:
+            ssh_params (dict): The parameters for the SSH connection.
+        """
         ssh.force_lock(**ssh_params)
 
     def update_version(self, password):
+        """Update the vault data format to the latest version.
+
+        Args:
+            password (str): The master password for the vault.
+
+        Returns:
+            bool: True if the vault was updated, False otherwise.
+        """
         if not self.update:
             return
         current_version = self.data.get('version')
@@ -149,6 +216,25 @@ class Vault:
         return True
 
     def check_remote(self, file_path, ssh_params, path_to_original):
+        """Check the remote vault for updates.
+
+        Compares the timestamp of the local vault with the remote one
+        and returns the remote data if it's newer.
+
+        Args:
+            file_path (str): The path to the vault file.
+            ssh_params (dict): The parameters for the SSH connection.
+            path_to_original (str): The path to the original image for
+                steganography.
+
+        Raises:
+            VaultError: If there is a version mismatch between the local
+                and remote vaults.
+
+        Returns:
+            dict or None: The remote vault data if it is newer,
+                otherwise None.
+        """
         def check(fh, path_to_original):
             if path_to_original:
                 data = pickle.loads(steganography.read(fh, path_to_original))
@@ -169,6 +255,16 @@ class Vault:
         return self._open(file_path, ssh_params, path_to_original, 'rb', check)
 
     def merge(self, password, data, file_path, ssh_params, path_to_original):
+        """Merge updates from a remote vault into the local one.
+
+        Args:
+            password (str): The master password for the vault.
+            data (dict): The remote vault data to merge.
+            file_path (str): The path to the vault file.
+            ssh_params (dict): The parameters for the SSH connection.
+            path_to_original (str): The path to the original image for
+                steganography.
+        """
         self.unlock(password)
         data = self._unlock(password, data)
         updated = False
@@ -188,6 +284,19 @@ class Vault:
             self.save(file_path, ssh_params, path_to_original)
 
     def load(self, file_path, ssh_params=None, path_to_original=None):
+        """Load the vault from a file.
+
+        Args:
+            file_path (str): The path to the vault file.
+            ssh_params (dict, optional): The parameters for the SSH
+                connection. Defaults to None.
+            path_to_original (str, optional): The path to the original
+                image for steganography. Defaults to None.
+
+        Raises:
+            VaultError: If the vault file has a newer version than the
+                application supports.
+        """
         def read(fh, path_to_original):
             if path_to_original:
                 data = pickle.loads(
@@ -203,6 +312,15 @@ class Vault:
         self._locked = True
 
     def save(self, file_path, ssh_params=None, path_to_original=None):
+        """Save the vault to a file.
+
+        Args:
+            file_path (str): The path to the vault file.
+            ssh_params (dict, optional): The parameters for the SSH
+                connection. Defaults to None.
+            path_to_original (str, optional): The path to the original
+                image for steganography. Defaults to None.
+        """
         def write(fh, path_to_original):
             if path_to_original:
                 steganography.write(
@@ -214,7 +332,14 @@ class Vault:
         self._open(file_path, ssh_params, path_to_original, 'wb', write)
 
     def load_clear(self, fh):
-        """Load data from open file containing clear text data."""
+        """Load passwords from a clear text file.
+
+        Args:
+            fh (file): An open file handle to read from.
+
+        Raises:
+            VaultError: If the vault is locked.
+        """
         if self.locked:
             raise VaultError('Vault is locked, unlock first!')
         self._locked = False
@@ -222,14 +347,25 @@ class Vault:
             self.add(ast.literal_eval(row.strip()))
 
     def save_clear(self, fh):
-        """Save data in open file as clear text."""
+        """Save passwords to a clear text file.
+
+        Args:
+            fh (file): An open file handle to write to.
+
+        Raises:
+            VaultError: If the vault is locked.
+        """
         if self.locked:
             raise VaultError('Vault is locked, please unlock first')
         for obj in self.data['vault']:
             print(repr(obj), file=fh)
 
     def lock(self, password):
-        """Lock vault with password."""
+        """Encrypt and lock the vault using the provided password.
+
+        Args:
+            password (str): The master password.
+        """
         if self._locked:
             print('Already locked')
             return
@@ -242,7 +378,15 @@ class Vault:
         self._locked = True
 
     def unlock(self, password):
-        """Unlock vault with password."""
+        """Decrypt and unlock the vault using the provided password.
+
+        Args:
+            password (str): The master password.
+
+        Returns:
+            dict or None: The unlocked vault data, or None if unlocking
+                failed.
+        """
         if not self._locked:
             return self.data
         data = self._unlock(password, self.data)
@@ -252,6 +396,16 @@ class Vault:
         return data
 
     def _unlock(self, password, data):
+        """Helper method to decrypt vault data.
+
+        Args:
+            password (str): The master password.
+            data (dict): The vault data to decrypt.
+
+        Returns:
+            dict or None: The decrypted vault data, or None if
+                decryption failed.
+        """
         print('Unlock:', data.get('iterations'))
         key = self.create_key(password,
                               data['salt'],
@@ -264,7 +418,19 @@ class Vault:
 
     @staticmethod
     def create_key(password, salt, iterations=ITERATIONS):
-        """Create a key to be used."""
+        """Generate an encryption key from a password and salt.
+
+        Uses PBKDF2HMAC with SHA256 to derive a key.
+
+        Args:
+            password (str): The master password.
+            salt (bytes): The salt to use for key derivation.
+            iterations (int, optional): The number of iterations.
+                Defaults to ITERATIONS.
+
+        Returns:
+            bytes: The derived encryption key.
+        """
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -276,22 +442,38 @@ class Vault:
             kdf.derive(bytearray(password, 'utf-8')))
 
     def get_objects(self):
-        """Get objects in their current state in vault."""
+        """Return all password objects from the vault."""
         return self.data['vault']
 
     def set_objects(self, objs):
-        """Set vault content to input."""
+        """Replace all password objects in the vault.
+
+        Args:
+            objs (list): A list of password objects to set.
+        """
         if not self.locked:
             self.data['vault'] = []
             for obj in objs:
                 self.add(obj)
 
     def add(self, obj):
-        """Add to vault content."""
+        """Add a new password object to the vault.
+
+        Args:
+            obj (tuple): The password object to add.
+        """
         self.data['vault'].append(obj)
         self.data['timestamp'] = datetime.datetime.utcnow()
 
     def replace(self, obj):
+        """Replace an existing password object in the vault.
+
+        Args:
+            obj (tuple): The password object to replace.
+
+        Returns:
+            bool: True if the object was replaced, False otherwise.
+        """
         for index, current_obj in enumerate(self.data['vault']):
             if current_obj['uid'] == obj['uid']:
                 self.data['vault'][index] = obj
@@ -299,10 +481,22 @@ class Vault:
                 return True
 
     def remove_password(self, obj):
-        """Remove obj from vault if it exists."""
+        """Remove a specific password object from the vault.
+
+        Args:
+            obj (tuple): The password object to remove.
+        """
         self.data['vault'].remove(obj)
 
     def remove_deleted(self):
+        """Permanently remove password objects marked as deleted.
+
+        Objects are removed if they have been marked as deleted for
+        more than KEEP_DAYS.
+
+        Returns:
+            bool: True if any objects were removed, False otherwise.
+        """
         now = datetime.datetime.now()
         keep = datetime.timedelta(days=KEEP_DAYS)
         before = len(self.data['vault'])
