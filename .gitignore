@@ -134,9 +134,8 @@ dmypy.json
 
 .idea/
 
-# Copilot instructions
-.github/copilot-instructions.md
-.github/GIT_USAGE.md
-
 # AI resume file.
 resume_here.md
+
+# Dev Sentinel.
+.dev-sentinel
