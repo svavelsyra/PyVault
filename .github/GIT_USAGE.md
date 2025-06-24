@@ -16,6 +16,11 @@ The commit message should be structured as follows:
 [optional footer(s)]
 ```
 
+**Line Length:**
+
+- Keep the subject line (the first line) to 50 characters or less.
+- Wrap the body of the commit message at 72 characters.
+
 **Types:**
 
 The following types are most commonly used:
@@ -36,5 +41,6 @@ The following types are most commonly used:
 ```
 feat(ssh): add support for public key authentication
 
-Adds the ability to connect to an SSH server using a public key instead of a password.
+ * Adds the ability to connect to an SSH server using a public key instead of a password.
+ ** This allows for more secure and convenient authentication.
 ```
