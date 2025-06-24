@@ -24,8 +24,14 @@ import platform
 
 def data_dir():
     """Returns path to programs data dir."""
+    # Check for development environment by looking for a sentinel file.
+    dev_sentinel = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.dev_sentinel')
+    is_dev = os.path.exists(dev_sentinel)
+
     system = platform.system()
-    if system == 'Windows':
+    if is_dev:
+        path = os.path.join(os.path.dirname(dev_sentinel), 'dev_data')
+    elif system == 'Windows':
         path = os.path.join('appdata', 'local', 'vault')
     elif system == 'Linux':
         path = '.vault'
