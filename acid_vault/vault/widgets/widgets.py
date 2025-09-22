@@ -17,7 +17,6 @@
 ########################################################################
 """Varius GUI widgets"""
 import datetime
-from distutils.version import LooseVersion
 import json
 import os
 import subprocess
@@ -411,26 +410,6 @@ class About(Dialog):
             label = tkinter.Label(master, text=f'{name} {eval(var)}')
             label.pack(fill=tkinter.X, expand=1)
 
-        version = check_version('acid_vault')
-        if version != __version__:
-            label = tkinter.Label(
-                master, text=f'Version on PyPi: {version}')
-            label.pack(fill=tkinter.X, expand=1)
-            button = tkinter.Button(master,
-                                    text='Update (Will restart program)',
-                                    command=lambda: self.update(version))
-            button.pack()
-
-    def update(self, version):
-        """Update to the newest version of program"""
-        p = subprocess.Popen(
-            [sys.executable, '-m', 'pip', 'install', f'acid_vault=={version}'],
-            stdout=subprocess.PIPE)
-        p.wait()
-        print(str(p.stdout.read(), 'utf-8'))
-        path = os.path.join(os.path.dirname(__file__), 'VaultGui.pyw')
-        print(f'Starting path: {path}')
-        os.execv(sys.executable, [sys.executable, path])
 
     def buttonbox(self):
         """Standard OK and Cancel buttons."""
@@ -525,11 +504,3 @@ class Timer:
         """Stop timer."""
         self.timer and self.master.after_cancel(self.timer)
 
-
-def check_version(name):
-    """Checks current version for package on pypi"""
-    pypi_url = f'https://pypi.org/pypi/{name}/json'
-    response = urllib.request.urlopen(pypi_url, timeout=5).read().decode()
-    latest_version = max(LooseVersion(s) for s in
-                         json.loads(response)['releases'].keys())
-    return latest_version

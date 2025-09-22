@@ -182,13 +182,6 @@ class GUI:
             if not same_minor_version(obj.get('version'), '2.0.0'):
                 obj = legacy_load.legacy_load(obj)
             self.profile.set(self.load_profile())
-            self.last_update = obj.get('last_update', False)
-            now = datetime.datetime.now()
-            t_delta = datetime.timedelta(days=7)
-            if not self.last_update or now - self.last_update > t_delta:
-                self.last_update = now
-                if widgets.check_version('acid_vault') != __version__:
-                    self.status.set('New version avaliable at pypi', 'green')
         except Exception as err:
             print(err)
 
